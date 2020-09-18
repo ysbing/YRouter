@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+java -jar YRouter-cli-1.0.0.jar input.apk -out output

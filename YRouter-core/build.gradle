@@ -1,0 +1,27 @@
+apply plugin: 'java'
+apply plugin: 'kotlin'
+
+repositories {
+    google()
+    jcenter()
+}
+
+dependencies {
+    implementation fileTree(dir: "libs", include: ["*.jar"])
+    implementation fileTree(dir: "${rootDir}/libs", include: ["*.jar"])
+    implementation(project(":YRouter-api"))
+    implementation 'com.squareup:javapoet:1.13.0'
+    implementation('com.squareup:kotlinpoet:1.6.0') {
+        exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+    }
+    implementation 'org.jetbrains.kotlin:kotlin-compiler-embeddable:1.4.0'
+}
+
+apply from: rootProject.file('gradle/java-artifacts.gradle')
+apply from: rootProject.file('gradle/gradle-mvn-push.gradle')
+
+jar {
+    new File("${rootDir}/libs").listFiles().each {
+        from zipTree(it)
+    }
+}

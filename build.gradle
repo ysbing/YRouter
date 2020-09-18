@@ -1,0 +1,51 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    ext.kotlin_version = "1.4.10"
+    repositories {
+        google()
+        jcenter()
+        mavenLocal()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:4.0.1"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.ysbing.yrouter:YRouter-gradle-plugin:1.0.0"
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.5'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        jcenter()
+        mavenLocal()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
+ext {
+    javaVersion = JavaVersion.VERSION_1_8
+
+    GROUP = 'com.ysbing.yrouter'
+    VERSION_NAME = "${YROUTER_VESSION}"
+
+    POM_NAME = "YRouter"
+    POM_PACKAGING = "pom"
+    POM_DESCRIPTION = "一款性能0损耗的Android模块路由"
+
+    POM_URL = "https://github.com/ysbing/YRouter.git"
+    POM_SCM_URL = "https://github.com/ysbing/YRouter.git"
+    POM_ISSUE_URL = 'https://github.com/ysbing/YRouter/issues'
+
+    POM_LICENCE_NAME = "Apache-2.0"
+    POM_LICENCE_URL = " http://www.apache.org/licenses/"
+    POM_LICENCE_DIST = "repo"
+
+    POM_DEVELOPER_ID = "ysbing"
+    POM_DEVELOPER_NAME = "Chen Zhujie"
+
+    BINTRAY_LICENCE = ["Apache-2.0"]
+    BINTRAY_ORGANIZATION = "ysbing"
+}

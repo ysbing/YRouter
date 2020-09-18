@@ -1,0 +1,27 @@
+apply plugin: 'java'
+apply plugin: 'kotlin'
+
+buildscript {
+    repositories {
+        google()
+        jcenter()
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.4.10"
+    }
+}
+
+repositories {
+    google()
+    jcenter()
+}
+
+dependencies {
+    implementation gradleApi()
+    compileOnly 'com.android.tools.build:gradle:4.0.1'
+    implementation(project(":YRouter-core"))
+    implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:1.4.10")
+}
+
+apply from: rootProject.file('gradle/java-artifacts.gradle')
+apply from: rootProject.file('gradle/gradle-mvn-push.gradle')

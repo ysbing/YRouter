@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">YRouter</string>
+    <string name="lib1_activity">第一个Activity</string>
+    <string name="lib2_activity">第二个Activity</string>
+</resources>

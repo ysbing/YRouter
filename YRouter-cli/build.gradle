@@ -1,0 +1,32 @@
+apply plugin: 'java'
+apply plugin: 'kotlin'
+
+repositories {
+    google()
+    jcenter()
+}
+
+dependencies {
+    implementation(project(":YRouter-core"))
+}
+
+version '1.0.0'
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.ysbing.yrouter.cli.Main'
+        attributes 'Manifest-Version': version
+    }
+    configurations.implementation.setCanBeResolved(true)
+    from {
+        configurations.implementation.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+}
+
+task buildJar(type: Copy, dependsOn: [build, jar]) {
+    from('build/libs') {
+        include '*' + version + '*.jar'
+    }
+    into('../tool_output')
+}
