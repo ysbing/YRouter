@@ -11,7 +11,7 @@ import org.gradle.api.Project
 class YRouterPlugin : Plugin<Project> {
     companion object {
         const val YROUTER = "yrouter"
-        const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:1.0.1-SNAPSHOT"
+        const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:1.0.1"
     }
 
     override fun apply(project: Project) {
