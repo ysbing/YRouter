@@ -24,7 +24,7 @@ bintray {
     user = getBintrayUser()
     key = getBintrayKey()
     configurations = ['archives']
-    publications = ['ResguardPub']
+    publications = ['maven']
 
     pkg {
         repo = POM_NAME

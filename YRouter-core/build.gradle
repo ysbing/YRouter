@@ -17,8 +17,7 @@ dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-compiler-embeddable:1.4.0'
 }
 
-apply from: rootProject.file('gradle/java-artifacts.gradle')
-apply from: rootProject.file('gradle/gradle-mvn-push.gradle')
+apply from: rootProject.file('gradle/publish.gradle')
 
 jar {
     new File("${rootDir}/libs").listFiles().each {

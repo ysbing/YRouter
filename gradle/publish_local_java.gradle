@@ -23,7 +23,7 @@ artifacts {
 
 publishing {
   publications {
-    ResguardPub(MavenPublication) {
+    maven(MavenPublication) {
       from components.java
       groupId = group
       artifactId = POM_ARTIFACT_ID
@@ -32,5 +32,5 @@ publishing {
   }
 }
 
-task buildAndPublishLocalMaven(dependsOn: ['build', 'publishResguardPublicationToMavenLocal']) {}
+task buildAndPublishLocalMaven(dependsOn: ['build', 'publishYRouterPublicationToMavenLocal']) {}
 
