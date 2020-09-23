@@ -11,7 +11,7 @@ import org.gradle.api.Project
 class YRouterPlugin : Plugin<Project> {
     companion object {
         const val YROUTER = "yrouter"
-        const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:1.0.0"
+        const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:1.0.1-SNAPSHOT"
     }
 
     override fun apply(project: Project) {
@@ -20,9 +20,11 @@ class YRouterPlugin : Plugin<Project> {
             val android = project.extensions.getByType(AppExtension::class.java)
             project.afterEvaluate {
                 createApkTask(project, "")
-                android.productFlavors.map { flavor ->
-                    val flavorName = flavor.name.capitalize()
-                    createApkTask(project, flavorName)
+                android.applicationVariants.map { variant ->
+                    if (variant.buildType.isDebuggable) {
+                        val variantName = variant.name.capitalize().replace("Debug", "")
+                        createApkTask(project, variantName)
+                    }
                 }
             }
             var hasYRouterTask = false
