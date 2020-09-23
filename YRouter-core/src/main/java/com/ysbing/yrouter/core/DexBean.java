@@ -10,10 +10,17 @@ import jadx.core.dex.nodes.MethodNode;
 
 public class DexBean {
     public ClassNode classNode;
-    public boolean isMethod;
-    public boolean isField;
-    public boolean isInner;
+    public ClassType classType;
+    public NodeType nodeType;
     public MethodNode method;
     public FieldNode field;
     public Map<ClassNode, List<DexBean>> inner = new HashMap<>();
+
+    public enum ClassType {
+        CLASS, INTERFACE, OBJECT, UNKNOWN
+    }
+
+    public enum NodeType {
+        METHOD, FIELD, INNER
+    }
 }

@@ -3,6 +3,8 @@ package com.ysbing.yrouter.core
 import com.ysbing.yrouter.api.YRouterApi
 import jadx.api.JadxArgs
 import jadx.core.dex.nodes.ClassNode
+import jadx.core.dex.nodes.FieldNode
+import jadx.core.dex.nodes.MethodNode
 import jadx.core.dex.nodes.RootNode
 import jadx.core.dex.visitors.DepthTraversal
 import jadx.core.dex.visitors.IDexTreeVisitor
@@ -25,10 +27,10 @@ object ExtractDexClass {
         root.initClassPath()
         root.initPasses()
         root.getClasses(false).map { classNode ->
-            collect(classNode, list, null)
+            extract(classNode, list, null)
         }
         fun visit(visitor: IDexTreeVisitor, bean: DexBean) {
-            if (bean.isInner) {
+            if (bean.nodeType == DexBean.NodeType.INNER) {
                 bean.inner.values.map {
                     it.map {
                         visit(visitor, it)
@@ -52,81 +54,162 @@ object ExtractDexClass {
         infoList.addAll(list)
     }
 
-    private fun collect(
+    private fun extract(
         classNode: ClassNode,
         list: MutableList<DexBean>,
-        parentClassNode: ClassNode?
+        parentClassNode: ClassNode?,
+        extractClass: Boolean = false
     ) {
-        classNode.fields.map annotation@{ field ->
-            if (field.getAnnotation(YRouterApi::class.java.name) != null) {
-                println("变量:$field")
-                val dexBean = DexBean()
-                dexBean.classNode = classNode
-                dexBean.isField = true
-                dexBean.field = field
-                if (parentClassNode == null) {
-                    list.add(dexBean)
-                } else {
-                    val bean = list.find {
-                        it.classNode == parentClassNode && it.isInner && it.inner.containsKey(
-                            classNode
-                        )
-                    }
-                    if (bean == null) {
-                        val innerBean = DexBean()
-                        innerBean.classNode = parentClassNode
-                        innerBean.isInner = true
-                        if (innerBean.inner[classNode] == null) {
-                            innerBean.inner[classNode] = ArrayList()
-                        }
-                        innerBean.inner[classNode]?.add(dexBean)
-                        list.add(innerBean)
-                    } else {
-                        if (bean.inner[classNode] == null) {
-                            bean.inner[classNode] = ArrayList()
-                        }
-                        bean.inner[classNode]?.add(dexBean)
-                    }
+        fun extractField(field: FieldNode) {
+            println("变量:$field")
+            val dexBean = DexBean()
+            dexBean.classNode = classNode
+            dexBean.classType = getClassTypeFromClassNode(classNode).apply {
+                if (this == DexBean.ClassType.UNKNOWN) {
+                    return
                 }
-                return@annotation
+            }
+            dexBean.nodeType = DexBean.NodeType.FIELD
+            dexBean.field = field
+            if (parentClassNode == null) {
+                list.add(dexBean)
+            } else {
+                val bean = list.find {
+                    it.classNode == parentClassNode && it.nodeType == DexBean.NodeType.INNER && it.inner.containsKey(
+                        classNode
+                    )
+                }
+                if (bean == null) {
+                    val innerBean = DexBean()
+                    innerBean.classNode = parentClassNode
+                    innerBean.classType = getClassTypeFromClassNode(parentClassNode).apply {
+                        if (this == DexBean.ClassType.UNKNOWN) {
+                            return
+                        }
+                    }
+                    innerBean.nodeType = DexBean.NodeType.INNER
+                    if (innerBean.inner[classNode] == null) {
+                        innerBean.inner[classNode] = ArrayList()
+                    }
+                    innerBean.inner[classNode]?.add(dexBean)
+                    list.add(innerBean)
+                } else {
+                    if (bean.inner[classNode] == null) {
+                        bean.inner[classNode] = ArrayList()
+                    }
+                    bean.inner[classNode]?.add(dexBean)
+                }
             }
         }
-        classNode.methods.map annotation@{ method ->
-            if (method.getAnnotation(YRouterApi::class.java.name) != null) {
-                println("方法:$method")
-                val dexBean = DexBean()
-                dexBean.classNode = classNode
-                dexBean.isMethod = true
-                dexBean.method = method
-                if (parentClassNode == null) {
-                    list.add(dexBean)
-                } else {
-                    val bean = list.find {
-                        it.classNode == parentClassNode && it.isInner && it.inner.containsKey(
-                            classNode
-                        )
-                    }
-                    if (bean == null) {
-                        val innerBean = DexBean()
-                        innerBean.classNode = parentClassNode
-                        innerBean.isInner = true
-                        if (innerBean.inner[classNode] == null) {
-                            innerBean.inner[classNode] = ArrayList()
-                        }
-                        innerBean.inner[classNode]?.add(dexBean)
-                        list.add(innerBean)
-                    } else {
-                        if (bean.inner[classNode] == null) {
-                            bean.inner[classNode] = ArrayList()
-                        }
-                        bean.inner[classNode]?.add(dexBean)
-                    }
+
+        fun extractMethod(method: MethodNode) {
+            println("方法:$method")
+            val dexBean = DexBean()
+            dexBean.classNode = classNode
+            dexBean.classType = getClassTypeFromClassNode(classNode).apply {
+                if (this == DexBean.ClassType.UNKNOWN) {
+                    return
                 }
-                return@annotation
+            }
+            dexBean.nodeType = DexBean.NodeType.METHOD
+            dexBean.method = method
+            if (parentClassNode == null) {
+                list.add(dexBean)
+            } else {
+                val bean = list.find {
+                    it.classNode == parentClassNode && it.nodeType == DexBean.NodeType.INNER && it.inner.containsKey(
+                        classNode
+                    )
+                }
+                if (bean == null) {
+                    val innerBean = DexBean()
+                    innerBean.classNode = parentClassNode
+                    innerBean.classType = getClassTypeFromClassNode(parentClassNode).apply {
+                        if (this == DexBean.ClassType.UNKNOWN) {
+                            return
+                        }
+                    }
+                    innerBean.nodeType = DexBean.NodeType.INNER
+                    if (innerBean.inner[classNode] == null) {
+                        innerBean.inner[classNode] = ArrayList()
+                    }
+                    innerBean.inner[classNode]?.add(dexBean)
+                    list.add(innerBean)
+                } else {
+                    if (bean.inner[classNode] == null) {
+                        bean.inner[classNode] = ArrayList()
+                    }
+                    bean.inner[classNode]?.add(dexBean)
+                }
             }
         }
-        classNode.innerClasses.map { innerClass ->
-            collect(innerClass, list, classNode)
+        if (classNode.getAnnotation(YRouterApi::class.java.name) != null || extractClass) {
+            classNode.fields.map annotation@{ field ->
+                if (checkField(field)) {
+                    extractField(field)
+                }
+            }
+            classNode.methods.map annotation@{ method ->
+                if (checkMethod(method)) {
+                    extractMethod(method)
+                }
+            }
+            classNode.innerClasses.map { innerClass ->
+                if (checkClass(innerClass)) {
+                    extract(innerClass, list, classNode, true)
+                }
+            }
+        } else {
+            classNode.fields.map annotation@{ field ->
+                if (field.getAnnotation(YRouterApi::class.java.name) != null && checkField(field)) {
+                    extractField(field)
+                }
+            }
+            classNode.methods.map annotation@{ method ->
+                if (method.getAnnotation(YRouterApi::class.java.name) != null && checkMethod(method)) {
+                    extractMethod(method)
+                }
+            }
+            classNode.innerClasses.map { innerClass ->
+                if (checkClass(innerClass)) {
+                    extract(innerClass, list, classNode)
+                }
+            }
         }
+    }
+
+    fun getClassTypeFromClassNode(classNode: ClassNode): DexBean.ClassType {
+        return when {
+            classNode.accessFlags.isInterface -> {
+                DexBean.ClassType.INTERFACE
+            }
+            classNode.fields.find { it.name == "INSTANCE" } != null -> {
+                DexBean.ClassType.OBJECT
+            }
+            classNode.isEnum -> {
+                DexBean.ClassType.UNKNOWN
+            }
+            else -> DexBean.ClassType.CLASS
+        }
+    }
+
+    private fun checkClass(classNode: ClassNode): Boolean {
+        return classNode.shortName != "DefaultImpls"
+    }
+
+    private fun checkField(fieldNode: FieldNode): Boolean {
+        return fieldNode.name != "INSTANCE" && fieldNode.name != "Companion"
+                && !fieldNode.name.contains("_\$_")
+                && fieldNode.parentClass.shortName != "DefaultImpls"
+    }
+
+    private fun checkMethod(methodNode: MethodNode): Boolean {
+        return methodNode.name != "<clinit>" && methodNode.name != "<init>"
+                && !methodNode.name.contains("_\$_")
+                && methodNode.parentClass.shortName != "DefaultImpls"
+                && methodNode.parentClass.fields.find {
+            it.name.capitalize() == methodNode.name.substringAfter("set")
+                    || it.name.capitalize() == methodNode.name.substringAfter("get")
+        } == null
     }
 }

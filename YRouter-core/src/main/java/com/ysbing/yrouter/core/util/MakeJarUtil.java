@@ -46,6 +46,9 @@ public class MakeJarUtil {
     public static void buildJavaClass(String javaPath, String classPath, String[] buildTools) {
         List<String> files = new ArrayList<>();
         collectJavaFile(javaPath, files);
+        if (files.isEmpty()) {
+            return;
+        }
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
         Iterable<? extends JavaFileObject> javaFiles = fileManager.getJavaFileObjectsFromStrings(files);

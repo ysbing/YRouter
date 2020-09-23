@@ -8,6 +8,7 @@ import com.ysbing.yrouter.sampleslibrary1.Library1Activity
 import com.ysbing.yrouter.sampleslibrary2.Library2Activity
 import kotlinx.android.synthetic.main.activity_main.*
 
+@YRouterApi
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -19,6 +20,8 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, Library2Activity::class.java))
         }
     }
+
+    var e3333333333333: Int = 0
 
     companion object {
         @YRouterApi
