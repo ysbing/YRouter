@@ -11,7 +11,6 @@ import com.android.build.gradle.internal.pipeline.TransformManager
 import com.android.build.gradle.internal.publishing.AndroidArtifacts
 import com.ysbing.yrouter.core.CheckClassObject
 import com.ysbing.yrouter.core.util.FileOperation
-import org.apache.commons.io.FileUtils
 import org.gradle.api.Project
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
 import java.io.File
@@ -95,7 +94,7 @@ class CheckUsagesTransform(
                     dir.scopes,
                     Format.DIRECTORY
                 )
-                FileUtils.copyDirectory(dir.file, dest)
+                dir.file.copyRecursively(dest, true)
                 extractClass(
                     extractFiles,
                     extractClass,
@@ -111,7 +110,7 @@ class CheckUsagesTransform(
                     jar.scopes,
                     Format.JAR
                 )
-                FileUtils.copyFile(jar.file, dest)
+                jar.file.copyTo(dest, true)
                 extractClass(
                     extractFiles,
                     extractClass,

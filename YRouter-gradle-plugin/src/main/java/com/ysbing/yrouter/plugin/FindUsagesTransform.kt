@@ -9,7 +9,6 @@ import com.android.build.gradle.LibraryExtension
 import com.android.build.gradle.internal.pipeline.TransformManager
 import com.ysbing.yrouter.core.util.DecompileUtil
 import com.ysbing.yrouter.core.util.MakeJarUtil
-import org.apache.commons.io.FileUtils
 import org.gradle.api.Project
 import java.io.File
 import java.util.*
@@ -59,7 +58,7 @@ class FindUsagesTransform(
                     dir.scopes,
                     Format.DIRECTORY
                 )
-                FileUtils.copyDirectory(dir.file, dest)
+                dir.file.copyRecursively(dest, true)
                 findUsages(indexFile, buildDir, dir.file, usagesInfo)
             }
             it.jarInputs.map { jar ->
@@ -69,7 +68,7 @@ class FindUsagesTransform(
                     jar.scopes,
                     Format.JAR
                 )
-                FileUtils.copyFile(jar.file, dest)
+                jar.file.copyTo(dest, true)
             }
         }
         val usagesInfoFile = File(
