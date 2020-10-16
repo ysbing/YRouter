@@ -6,12 +6,14 @@ import com.android.build.gradle.LibraryExtension
 import com.android.build.gradle.LibraryPlugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.plugins.JavaPlugin
 
 
-class YRouterPlugin : Plugin<Project> {
+open class YRouterPlugin : Plugin<Project> {
     companion object {
         const val YROUTER = "yrouter"
         const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:1.0.2-SNAPSHOT"
+        const val YROUTER_MOCK_DEPENDENCIES = "com.ysbing.yrouter:YRouter-mock:1.0.2-SNAPSHOT"
     }
 
     override fun apply(project: Project) {
@@ -35,7 +37,13 @@ class YRouterPlugin : Plugin<Project> {
                     hasYRouterTask = true
                 }
             }
-            android.registerTransform(CheckUsagesTransform(project, android))
+            android.registerTransform(
+                CheckUsagesTransform(
+                    project,
+                    android,
+                    this is YRouterMockPlugin
+                )
+            )
             if (hasYRouterTask) {
                 android.registerTransform(MakeIndexJarTransform(project, android))
             }
@@ -52,7 +60,13 @@ class YRouterPlugin : Plugin<Project> {
         val configurationName =
             if (variantName.isEmpty()) YROUTER else variantName.decapitalize() + YROUTER.capitalize()
         val compileOnlyConfig =
-            if (variantName.isEmpty()) "compileOnly" else variantName.decapitalize() + "CompileOnly"
+            if (this is YRouterMockPlugin && project.plugins.hasPlugin(AppPlugin::class.java)) {
+                if (variantName.isEmpty()) JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME
+                else variantName.decapitalize() + JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME.capitalize()
+            } else {
+                if (variantName.isEmpty()) JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME
+                else variantName.decapitalize() + JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME.capitalize()
+            }
         if (project.configurations.findByName(configurationName) == null
             && project.configurations.findByName(compileOnlyConfig) != null
         ) {
@@ -60,7 +74,10 @@ class YRouterPlugin : Plugin<Project> {
             project.configurations.getByName(compileOnlyConfig).extendsFrom(configuration)
         }
         if (variantName.isEmpty()) {
-            project.dependencies.add("api", YROUTER_API_DEPENDENCIES)
+            project.dependencies.add(
+                JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME,
+                YROUTER_API_DEPENDENCIES
+            )
         }
     }
 

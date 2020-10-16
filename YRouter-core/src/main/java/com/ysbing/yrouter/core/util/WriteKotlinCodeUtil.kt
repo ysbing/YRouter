@@ -3,14 +3,12 @@ package com.ysbing.yrouter.core.util
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.ysbing.yrouter.core.DexBean
-import com.ysbing.yrouter.core.ExtractDexClass
-import com.ysbing.yrouter.core.util.WriteCodeUtil.getPackageNameAndClassName
-import com.ysbing.yrouter.core.util.WriteCodeUtil.writeEmptyJava
+import com.ysbing.yrouter.core.ExtractDexClassObject
+import com.ysbing.yrouter.core.util.WriteCodeUtil.Companion.getPackageNameAndClassName
+import com.ysbing.yrouter.core.util.WriteCodeUtil.Companion.writeEmptyJava
 import jadx.core.dex.instructions.args.ArgType
 import jadx.core.dex.nodes.ClassNode
 import java.io.File
-import java.lang.reflect.Type
-import java.util.*
 
 /**
  * 将解析后的dex，写入Java文件
@@ -30,7 +28,7 @@ object WriteKotlinCodeUtil {
     }
 
     private fun newClassBuilder(classNode: ClassNode, outPath: String): TypeSpec.Builder {
-        val classType = ExtractDexClass.getClassTypeFromClassNode(classNode)
+        val classType = ExtractDexClassObject.getClassTypeFromClassNode(classNode)
         val classBuilder = when (classType) {
             DexBean.ClassType.OBJECT -> {
                 TypeSpec.objectBuilder(classNode.classInfo.shortName)
@@ -64,7 +62,7 @@ object WriteKotlinCodeUtil {
             classBuilder.addFunction(
                 FunSpec.builder(method.name).apply {
                     method.argRegs.map argRegs@{ arg ->
-                        if (arg.type.isPrimitive) {
+                        if (isPrimitive(arg.type)) {
                             addParameter(
                                 WriteCodeUtil.getSafeMethodName(arg),
                                 getPrimitiveClassName(arg.type.toString()).first
@@ -96,15 +94,15 @@ object WriteKotlinCodeUtil {
                                 )
                             } else {
                                 val className = if (argType.isArray) {
-                                    if (argType.arrayElement.isPrimitive) {
+                                    if (isPrimitive(argType.arrayElement)) {
                                         val pair =
                                             getPrimitiveClassName(argType.arrayElement.toString())
-                                        val array = ClassName("kotlin", "Array")
+                                        val array = Array::class.asClassName()
                                         array.parameterizedBy(pair.first)
                                     } else {
                                         val names =
                                             getPackageNameAndClassName(argType.arrayElement.`object`)
-                                        val array = ClassName("kotlin", "Array")
+                                        val array = Array::class.asClassName()
                                         array.parameterizedBy(
                                             ClassName(names[0], names[1]).apply {
                                                 writeEmptyJava(outPath, packageName, simpleName)
@@ -124,44 +122,66 @@ object WriteKotlinCodeUtil {
                         }
                     }
                     if (method.returnType != null) {
-                        if (method.returnType.isPrimitive) {
-                            val pair = getPrimitiveClassName(method.returnType.toString())
-                            if (pair.first != Void::class.asTypeName()) {
-                                if (pair.first == Any::class.java) {
-                                    returns(ClassName("", Any::class.java.name).copy(true))
+                        if (isPrimitive(method.returnType)) {
+                            val retClassName = getPrimitiveClassName(method.returnType.toString())
+                            if (retClassName.first != Void::class.asTypeName()) {
+                                if (retClassName.first == Any::class.asClassName()) {
+                                    returns(Any::class.asClassName().copy(true))
                                 } else {
-                                    returns(pair.first)
+                                    returns(retClassName.first)
                                 }
-                                addStatement("return ${pair.second}")
+                                addStatement(
+                                    WriteKotlinMockCodeUtil.mockMethod(
+                                        method.parentClass.fullName,
+                                        method.name,
+                                        retClassName.first,
+                                        parameters
+                                    )
+                                )
+                            } else {
+                                addStatement(
+                                    WriteKotlinMockCodeUtil.mockVoid(
+                                        method.parentClass.fullName,
+                                        method.name,
+                                        parameters
+                                    )
+                                )
                             }
                         } else {
                             val names = getPackageNameAndClassName(method.returnType.`object`)
-                            returns(ClassName(names[0], names[1]).apply {
+                            val retClassName = ClassName(names[0], names[1]).apply {
                                 writeEmptyJava(outPath, packageName, simpleName)
-                            }.copy(true))
-                            addStatement("return null")
+                            }
+                            returns(retClassName.copy(true))
+                            addStatement(
+                                WriteKotlinMockCodeUtil.mockMethod(
+                                    method.parentClass.fullName,
+                                    method.name,
+                                    retClassName,
+                                    parameters
+                                )
+                            )
                         }
                     }
                 }.build()
             )
         } else if (dexBean.nodeType == DexBean.NodeType.FIELD) {
             val field = dexBean.field
-            if (field.type.isObject && field.type.`object` == String::class.java.name || field.type.isPrimitive) {
+            val fieldBuilder: PropertySpec.Builder
+            if (field.type.isObject && field.type.`object` == String::class.java.name || isPrimitive(
+                    field.type
+                )
+            ) {
                 val pair = getPrimitiveClassName(field.type.toString())
-                classBuilder.addProperty(
+                fieldBuilder =
                     PropertySpec.builder(
                         field.name,
                         pair.first
                     ).apply {
-                        initializer(pair.second)
-                        val classType = ExtractDexClass.getClassTypeFromClassNode(field.parentClass)
-                        if (classType == DexBean.ClassType.OBJECT && field.accessFlags.isFinal) {
-                            addModifiers(KModifier.CONST)
-                        } else {
-                            mutable(true)
-                        }
-                    }.build()
-                )
+                        val classType =
+                            ExtractDexClassObject.getClassTypeFromClassNode(field.parentClass)
+                        mutable(!(classType == DexBean.ClassType.OBJECT && field.accessFlags.isFinal))
+                    }
             } else {
                 if (field.type.isGeneric) {
                     val names = getPackageNameAndClassName(field.type.`object`)
@@ -177,25 +197,23 @@ object WriteKotlinCodeUtil {
                             }
                         )
                     }
-                    classBuilder.addProperty(
+                    fieldBuilder =
                         PropertySpec.builder(
                             field.name,
                             className.parameterizedBy(typeNames).copy(true)
                         ).apply {
-                            initializer("null")
                             mutable(true)
-                        }.build()
-                    )
+                        }
                 } else {
                     val className = if (field.type.isArray) {
-                        if (field.type.arrayElement.isPrimitive) {
+                        if (isPrimitive(field.type.arrayElement)) {
                             val pair = getPrimitiveClassName(field.type.arrayElement.toString())
-                            val array = ClassName("kotlin", "Array")
+                            val array = Array::class.asClassName()
                             array.parameterizedBy(pair.first)
                         } else {
                             val names =
                                 getPackageNameAndClassName(field.type.arrayElement.`object`)
-                            val array = ClassName("kotlin", "Array")
+                            val array = Array::class.asClassName()
                             array.parameterizedBy(
                                 ClassName(names[0], names[1]).apply {
                                     writeEmptyJava(outPath, packageName, simpleName)
@@ -207,14 +225,20 @@ object WriteKotlinCodeUtil {
                             writeEmptyJava(outPath, packageName, simpleName)
                         }
                     }
-                    classBuilder.addProperty(
+                    fieldBuilder =
                         PropertySpec.builder(field.name, className.copy(true)).apply {
-                            initializer("null")
                             mutable(true)
-                        }.build()
-                    )
+                        }
                 }
             }
+            fieldBuilder.initializer(
+                WriteKotlinMockCodeUtil.mockField(
+                    field.parentClass.fullName,
+                    field.name,
+                    fieldBuilder.build().type as ClassName
+                )
+            )
+            classBuilder.addProperty(fieldBuilder.build())
         } else if (dexBean.nodeType == DexBean.NodeType.INNER) {
             val inner = dexBean.inner
             inner.keys.map {
@@ -239,41 +263,54 @@ object WriteKotlinCodeUtil {
         }
     }
 
-    private fun getPrimitiveClassName(typeName: String): Pair<TypeName, String> {
+    private fun getPrimitiveClassName(typeName: String): Pair<ClassName, String> {
         return when (typeName) {
             "boolean" -> {
-                Pair(Boolean::class.asTypeName(), "false")
+                Pair(Boolean::class.asClassName(), "false")
             }
             "char" -> {
-                Pair(Char::class.asTypeName(), "'0'")
+                Pair(Char::class.asClassName(), "'0'")
             }
             "byte" -> {
-                Pair(Byte::class.asTypeName(), "0")
+                Pair(Byte::class.asClassName(), "0")
             }
             "short" -> {
-                Pair(Short::class.asTypeName(), "0")
+                Pair(Short::class.asClassName(), "0")
             }
             "int" -> {
-                Pair(Int::class.asTypeName(), "0")
+                Pair(Int::class.asClassName(), "0")
             }
             "float" -> {
-                Pair(Float::class.asTypeName(), "0f")
+                Pair(Float::class.asClassName(), "0f")
             }
             "long" -> {
-                Pair(Long::class.asTypeName(), "0L")
+                Pair(Long::class.asClassName(), "0L")
             }
             "double" -> {
-                Pair(Double::class.asTypeName(), "0f")
+                Pair(Double::class.asClassName(), "0f")
             }
             "void" -> {
-                Pair(Void::class.asTypeName(), "null")
+                Pair(Void::class.asClassName(), "null")
             }
             String::class.java.name -> {
-                Pair(String::class.asTypeName(), "\"\"")
+                Pair(String::class.asClassName(), "\"\"")
             }
             else -> {
-                Pair(Any::class.asTypeName(), "null")
+                Pair(Any::class.asClassName(), "null")
             }
         }
+    }
+
+    private fun isPrimitive(arg: ArgType): Boolean {
+        if (arg.isPrimitive) {
+            return true
+        }
+        if (arg.isObject) {
+            val primitiveType = getPrimitiveClassName(arg.`object`)
+            if (primitiveType.first != Any::class.asClassName()) {
+                return true
+            }
+        }
+        return false
     }
 }

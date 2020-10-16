@@ -1,5 +1,6 @@
 package com.ysbing.yrouter.plugin
 
+import com.android.Version
 import com.android.build.api.transform.Format
 import com.android.build.api.transform.QualifiedContent
 import com.android.build.api.transform.Transform
@@ -9,10 +10,15 @@ import com.android.build.gradle.AppExtension
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.build.gradle.internal.pipeline.TransformManager
 import com.android.build.gradle.internal.publishing.AndroidArtifacts
+import com.android.build.gradle.internal.scope.VariantScope
+import com.android.build.gradle.internal.variant.ApplicationVariantData
+import com.android.build.gradle.internal.variant.BaseVariantData
 import com.ysbing.yrouter.core.CheckClassObject
 import com.ysbing.yrouter.core.util.FileOperation
 import org.gradle.api.Project
+import org.gradle.api.artifacts.ArtifactCollection
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
+import org.gradle.util.GradleVersion
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
@@ -22,7 +28,8 @@ import kotlin.collections.HashSet
 
 class CheckUsagesTransform(
     private val project: Project,
-    private val android: AppExtension
+    private val android: AppExtension,
+    private val isMock: Boolean
 ) : Transform() {
 
     override fun getName(): String {
@@ -42,21 +49,45 @@ class CheckUsagesTransform(
     }
 
     override fun applyToVariant(variant: VariantInfo): Boolean {
-        return !variant.isDebuggable
+        return !variant.isDebuggable || isMock
     }
 
+    @Suppress("PrivateApi")
     override fun transform(transformInvocation: TransformInvocation) {
         super.transform(transformInvocation)
+        transformInvocation.outputProvider.deleteAll()
         val variantName = transformInvocation.context.variantName
         val usagesInfo = HashSet<String>()
         android.applicationVariants.map { variant ->
             if (variant.name == variantName) {
                 if (variant is ApplicationVariantImpl) {
-                    val aars = variant.variantData.scope.getArtifactCollection(
-                        AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
-                        AndroidArtifacts.ArtifactScope.ALL,
-                        AndroidArtifacts.ArtifactType.EXPLODED_AAR
-                    )
+                    val aars: ArtifactCollection =
+                        if (Version.ANDROID_GRADLE_PLUGIN_VERSION > "4.0.2") {
+                            variant.variantData.variantDependencies.getArtifactCollection(
+                                AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
+                                AndroidArtifacts.ArtifactScope.ALL,
+                                AndroidArtifacts.ArtifactType.EXPLODED_AAR
+                            )
+                        } else {
+                            val scopeField = BaseVariantData::class.java.getDeclaredField("scope")
+                            scopeField.isAccessible = true
+                            val variantDataMethod =
+                                ApplicationVariantImpl::class.java.getDeclaredMethod("getVariantData")
+                            val scope = scopeField.get(variantDataMethod.invoke(variant))
+                            val getArtifactCollectionMethod =
+                                VariantScope::class.java.getDeclaredMethod(
+                                    "getArtifactCollection",
+                                    AndroidArtifacts.ConsumedConfigType::class.java,
+                                    AndroidArtifacts.ArtifactScope::class.java,
+                                    AndroidArtifacts.ArtifactType::class.java
+                                )
+                            getArtifactCollectionMethod.invoke(
+                                scope,
+                                AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
+                                AndroidArtifacts.ArtifactScope.ALL,
+                                AndroidArtifacts.ArtifactType.EXPLODED_AAR
+                            ) as ArtifactCollection
+                        }
                     aars.artifacts.map { aar ->
                         val file = File(aar.file, FindUsagesTransform.INDEX_USAGES_FILE)
                         if (file.exists() && file.canRead()) {

@@ -7,7 +7,11 @@ class Library2Api {
     var e22222222222: String = "e22222222222"
 
     @YRouterApi
-    fun w222222222(lala: Map<String, Double>, num: Float): Int {
+    fun w222222222(num: Float): Int {
         return 0
+    }
+
+    @YRouterApi
+    fun voidTest(num: String) {
     }
 }

@@ -8,4 +8,5 @@ project(':library2').projectDir = new File('samples/library2')
 include ':YRouter-cli',
         ':YRouter-core',
         ':YRouter-api',
+        ':YRouter-mock',
         ':YRouter-gradle-plugin'

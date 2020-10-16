@@ -6,17 +6,22 @@ import com.android.build.api.transform.TransformInvocation
 import com.android.build.gradle.AppExtension
 import com.android.build.gradle.internal.pipeline.TransformManager
 import com.ysbing.yrouter.core.DexBean
-import com.ysbing.yrouter.core.ExtractDexClass
+import com.ysbing.yrouter.core.ExtractDexClassObject
 import com.ysbing.yrouter.core.util.MakeJarUtil
 import com.ysbing.yrouter.core.util.WriteCodeUtil
 import org.gradle.api.Project
+import org.jetbrains.kotlin.gradle.plugin.KotlinBasePluginWrapper
 import java.io.File
+import java.net.URLClassLoader
 
 
 class MakeIndexJarTransform(
     private val project: Project,
     private val android: AppExtension
 ) : Transform() {
+    companion object {
+        const val KOTLIN_STDLIB = "kotlin-stdlib"
+    }
 
     override fun getName(): String {
         return "MakeIndexJarTransform"
@@ -34,8 +39,20 @@ class MakeIndexJarTransform(
         return false
     }
 
+    private fun getKotlinStdlibClassPath(): File? {
+        val pluginVersion = project.plugins.filterIsInstance<KotlinBasePluginWrapper>()
+            .firstOrNull()?.kotlinPluginVersion
+        val urlClassLoader = YRouterPlugin::class.java.classLoader as? URLClassLoader ?: return null
+        return urlClassLoader.urLs
+            .firstOrNull { it.toString().endsWith("$KOTLIN_STDLIB-$pluginVersion.jar") }
+            ?.let { File(it.toURI()) }
+            ?.takeIf(File::exists)
+    }
+
     override fun transform(transformInvocation: TransformInvocation) {
         super.transform(transformInvocation)
+        transformInvocation.outputProvider.deleteAll()
+        transformInvocation.context.temporaryDir.deleteRecursively()
         val buildDir = transformInvocation.context.temporaryDir
         val variantName = transformInvocation.context.variantName
         var apkOutputFile: File? = null
@@ -67,17 +84,23 @@ class MakeIndexJarTransform(
         if (infoList.isEmpty()) {
             return
         }
+        val writeCodeUtil = WriteCodeUtil(buildDir?.absolutePath + "/src")
         //生成java和kotlin源代码
         infoList.groupBy {
             it.classNode
         }.map {
-            WriteCodeUtil.run(buildDir?.absolutePath + "/src", it.key, it.value)
+            writeCodeUtil.run(it.key, it.value)
         }
         //编译源代码
         MakeJarUtil.buildJavaClass(
             buildDir?.absolutePath + "/src/lib",
             buildDir?.absolutePath + "/src/lib",
             arrayOf()
+        )
+        MakeJarUtil.buildKotlinClass(
+            buildDir?.absolutePath + "/src/lib",
+            buildDir?.absolutePath + "/src/lib",
+            arrayOf(getKotlinStdlibClassPath()?.absolutePath)
         )
         MakeJarUtil.buildJavaClass(
             buildDir?.absolutePath + "/src/main",
@@ -87,11 +110,14 @@ class MakeIndexJarTransform(
         MakeJarUtil.buildKotlinClass(
             buildDir?.absolutePath + "/src/main",
             buildDir?.absolutePath + "/src/main",
-            arrayOf(buildDir?.absolutePath + "/src/lib")
+            arrayOf(
+                buildDir?.absolutePath + "/src/lib",
+                getKotlinStdlibClassPath()?.absolutePath
+            )
         )
         //将所有的class合jar
         MakeJarUtil.buildJar(File(buildDir?.absolutePath + "/src/main"), outputFile)
-        println("生成完毕->${outputFile.absolutePath}，耗时:${System.currentTimeMillis() - startTime}")
+        println("yrouter build success->${outputFile.absolutePath}，耗时:${System.currentTimeMillis() - startTime}")
     }
 
     private fun collectDirClass(buildDir: File, file: File, infoList: MutableList<DexBean>) {
@@ -99,10 +125,10 @@ class MakeIndexJarTransform(
             if (file.isDirectory) {
                 val zipFile = File(buildDir, "${System.currentTimeMillis()}.jar")
                 MakeJarUtil.buildJar(file, zipFile)
-                ExtractDexClass.run(zipFile, infoList)
+                ExtractDexClassObject.run(zipFile, infoList)
                 return
             }
-            ExtractDexClass.run(file, infoList)
+            ExtractDexClassObject.run(file, infoList)
         } catch (e: Throwable) {
         }
     }

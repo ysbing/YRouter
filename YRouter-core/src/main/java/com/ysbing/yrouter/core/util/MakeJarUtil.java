@@ -15,6 +15,7 @@ import java.util.jar.Manifest;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
+import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 
 
@@ -43,7 +44,7 @@ public class MakeJarUtil {
         }
     }
 
-    public static void buildJavaClass(String javaPath, String classPath, String[] buildTools) {
+    public static void buildJavaClass(String javaPath, String classPath, String[] buildTools) throws IOException {
         List<String> files = new ArrayList<>();
         collectJavaFile(javaPath, files);
         if (files.isEmpty()) {
@@ -52,23 +53,26 @@ public class MakeJarUtil {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
         Iterable<? extends JavaFileObject> javaFiles = fileManager.getJavaFileObjectsFromStrings(files);
-        List<String> options = new ArrayList<>();
-        StringBuilder buildToolStrBuilder = new StringBuilder();
+        List<File> filePaths = new ArrayList<>();
+        String javaLocalClassPath = System.getProperty("java.class.path");
+        if (javaLocalClassPath != null) {
+            for (String s : javaLocalClassPath.split(":")) {
+                filePaths.add(new File(s));
+            }
+        }
+        for (File file : fileManager.getLocation(StandardLocation.PLATFORM_CLASS_PATH)) {
+            filePaths.add(file);
+        }
         for (String buildTool : buildTools) {
-            buildToolStrBuilder.append(buildTool).append(";");
+            filePaths.add(new File(buildTool));
         }
-        if (buildToolStrBuilder.toString().endsWith(";")) {
-            buildToolStrBuilder = new StringBuilder(buildToolStrBuilder.substring(0, buildToolStrBuilder.length() - 1));
-        }
-        String buildToolStr = buildToolStrBuilder.toString();
-        if (!buildToolStr.equals("")) {
-            options.add("-bootclasspath");
-            options.add(buildToolStr);
-        }
+        fileManager.setLocation(StandardLocation.PLATFORM_CLASS_PATH, filePaths);
+        List<String> options = new ArrayList<>();
         options.add("-d");
         options.add(classPath);
         JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, null, options, null, javaFiles);
-        task.call();
+        boolean result = task.call();
+        System.out.println("buildJavaClass:" + javaPath + ":" + result);
         try {
             fileManager.close();
         } catch (IOException e) {
@@ -77,7 +81,7 @@ public class MakeJarUtil {
     }
 
     public static void buildKotlinClass(String kotlinPath, String classPath, String[] buildTools) {
-        boolean result = JvmCompile.INSTANCE.exe(new File(kotlinPath), new File(classPath), buildTools);
+        boolean result = JvmCompile.INSTANCE.run(new File(kotlinPath), new File(classPath), buildTools);
         System.out.println("buildKotlinClass:" + kotlinPath + ":" + result);
     }
 
