@@ -1,11 +1,11 @@
 package com.ysbing.yrouter.samples
 
-import android.content.Intent
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.ysbing.yrouter.api.YRouterApi
-import com.ysbing.yrouter.sampleslibrary1.Library1Activity
-import com.ysbing.yrouter.sampleslibrary2.Library2Activity
+import com.ysbing.yrouter.sampleslibrary2.Library2Api
 import kotlinx.android.synthetic.main.activity_main.*
 
 @YRouterApi
@@ -14,14 +14,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         library1Activity.setOnClickListener {
-            startActivity(Intent(this, Library1Activity::class.java))
+            //startActivity(Intent(this, Library1Activity::class.java))
+            Library2Api().voidTest("hello")
         }
         library2Activity.setOnClickListener {
-            startActivity(Intent(this, Library2Activity::class.java))
+            val nn = Library2Api().w222222222(55f).toString() + Library2Api().e22222222222
+            Toast.makeText(this, nn, Toast.LENGTH_SHORT).show()
+            Log.i("WWWWWWWW", nn)
         }
     }
-
-    var e3333333333333: Int = 0
 
     companion object {
         @YRouterApi

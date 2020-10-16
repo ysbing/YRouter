@@ -16,8 +16,7 @@ import java.util.*
 class FindUsagesTransform(
     private val project: Project,
     private val library: LibraryExtension
-) :
-    Transform() {
+) : Transform() {
     companion object {
         const val INDEX_USAGES_FILE = "index_usages.txt"
     }
@@ -38,13 +37,11 @@ class FindUsagesTransform(
         return false
     }
 
-    override fun applyToVariant(variant: VariantInfo): Boolean {
-        return !variant.isDebuggable
-    }
-
     override fun transform(transformInvocation: TransformInvocation) {
         super.transform(transformInvocation)
+        transformInvocation.outputProvider.deleteAll()
         val buildDir = transformInvocation.context.temporaryDir
+        buildDir.deleteRecursively()
         val indexFile = ArrayList<File>()
         val usagesInfo = HashSet<String>()
         project.configurations.getAt(YRouterPlugin.YROUTER).asPath.split(";").map {

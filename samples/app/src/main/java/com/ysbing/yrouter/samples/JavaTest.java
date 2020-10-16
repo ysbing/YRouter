@@ -21,7 +21,7 @@ public class JavaTest extends Fragment {
     @YRouterApi
     public short kkkkkk = 0;
     @YRouterApi
-    public byte bbbbbbbbb =0;
+    public byte bbbbbbbbb = 0;
 
     public static class InnerClass1 extends JavaTest {
 
@@ -37,8 +37,13 @@ public class JavaTest extends Fragment {
 
     public static class InnerClass2 {
         @YRouterApi
-        public void f222(FragmentActivity context) {
-            Toast.makeText(context, "这里是JavaTest的第二个内部类", Toast.LENGTH_SHORT).show();
+        public long f222(float lll) {
+            return 0L;
         }
+    }
+
+    @YRouterApi
+    public Fragment f333(FragmentActivity context) {
+        return null;
     }
 }

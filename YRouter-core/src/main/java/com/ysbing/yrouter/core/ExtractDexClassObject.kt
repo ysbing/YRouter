@@ -12,17 +12,15 @@ import jadx.core.utils.files.InputFile
 import java.io.File
 
 
-object ExtractDexClass {
+object ExtractDexClassObject {
 
     fun run(file: File, infoList: MutableList<DexBean>) {
-        println("开始收集:$file")
+        println("yrouter begin extract from class:$file")
         val list = ArrayList<DexBean>()
         println(file)
-        val args = JadxArgs()
-        args.setInputFile(file)
+        val root = RootNode(JadxArgs())
         val loadedInputs = ArrayList<InputFile>()
         InputFile.addFilesFrom(file, loadedInputs, true)
-        val root = RootNode(args)
         root.load(loadedInputs)
         root.initClassPath()
         root.initPasses()
@@ -61,7 +59,7 @@ object ExtractDexClass {
         extractClass: Boolean = false
     ) {
         fun extractField(field: FieldNode) {
-            println("变量:$field")
+            println("yrouter extractField:$field")
             val dexBean = DexBean()
             dexBean.classNode = classNode
             dexBean.classType = getClassTypeFromClassNode(classNode).apply {
@@ -103,7 +101,7 @@ object ExtractDexClass {
         }
 
         fun extractMethod(method: MethodNode) {
-            println("方法:$method")
+            println("yrouter extractMethod:$method")
             val dexBean = DexBean()
             dexBean.classNode = classNode
             dexBean.classType = getClassTypeFromClassNode(classNode).apply {

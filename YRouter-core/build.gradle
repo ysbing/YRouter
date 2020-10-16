@@ -1,5 +1,6 @@
 apply plugin: 'java'
 apply plugin: 'kotlin'
+apply from: rootProject.file('gradle/publish.gradle')
 
 repositories {
     google()
@@ -14,10 +15,9 @@ dependencies {
     implementation('com.squareup:kotlinpoet:1.6.0') {
         exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
     }
-    implementation 'org.jetbrains.kotlin:kotlin-compiler-embeddable:1.4.0'
+    implementation 'org.jetbrains.kotlin:kotlin-compiler-embeddable:1.4.10'
+    implementation "com.squareup.okio:okio:2.8.0"
 }
-
-apply from: rootProject.file('gradle/publish.gradle')
 
 jar {
     new File("${rootDir}/libs").listFiles().each {

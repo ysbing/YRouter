@@ -1,6 +1,6 @@
 package com.ysbing.yrouter.cli
 
-import com.ysbing.yrouter.core.ExtractDexClass
+import com.ysbing.yrouter.core.ExtractDexClassObject
 import com.ysbing.yrouter.core.DexBean
 import com.ysbing.yrouter.core.util.FileOperation
 import com.ysbing.yrouter.core.util.MakeJarUtil
@@ -35,16 +35,22 @@ class CliMain {
         file.listFiles { _, name ->
             name?.endsWith(".dex") ?: false
         }?.map {
-            ExtractDexClass.run(it, infoList)
+            ExtractDexClassObject.run(it, infoList)
         }
+        val writeCodeUtil = WriteCodeUtil(readArgs.outputPath + "/tmp/src")
         //生成java和kotlin源代码
         infoList.groupBy {
             it.classNode
         }.map {
-            WriteCodeUtil.run(readArgs.outputPath + "/tmp/src", it.key, it.value)
+            writeCodeUtil.run(it.key, it.value)
         }
         //编译源代码
         MakeJarUtil.buildJavaClass(
+            readArgs.outputPath + "/tmp/src/lib",
+            readArgs.outputPath + "/tmp/src/lib",
+            arrayOf()
+        )
+        MakeJarUtil.buildKotlinClass(
             readArgs.outputPath + "/tmp/src/lib",
             readArgs.outputPath + "/tmp/src/lib",
             arrayOf()
@@ -65,7 +71,7 @@ class CliMain {
             File(readArgs.outputPath + "/tmp/src/main"),
             outputFile
         )
-        println("生成完毕->${outputFile.absolutePath}，耗时:${System.currentTimeMillis() - startTime}")
+        println("yrouter build success->${outputFile.absolutePath}，耗时:${System.currentTimeMillis() - startTime}")
     }
 
     private inner class ReadArgs(private val args: Array<String>) {
