@@ -11,9 +11,10 @@ import org.gradle.api.plugins.JavaPlugin
 
 open class YRouterPlugin : Plugin<Project> {
     companion object {
+        const val YROUTER_VERSION = "1.1.0-SNAPSHOT"
         const val YROUTER = "yrouter"
-        const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:1.0.2-SNAPSHOT"
-        const val YROUTER_MOCK_DEPENDENCIES = "com.ysbing.yrouter:YRouter-mock:1.0.2-SNAPSHOT"
+        const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:${YROUTER_VERSION}"
+        const val YROUTER_MOCK_DEPENDENCIES = "com.ysbing.yrouter:YRouter-mock:${YROUTER_VERSION}"
     }
 
     override fun apply(project: Project) {

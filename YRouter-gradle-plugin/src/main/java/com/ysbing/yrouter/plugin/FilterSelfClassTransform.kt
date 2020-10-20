@@ -89,7 +89,7 @@ class FilterSelfClassTransform(private val project: Project) : Transform() {
                 filterClass(findClass, it, rootPath)
             }
         } else {
-            if (file.absolutePath.endsWith(".class")) {
+            if (file.exists() && file.absolutePath.endsWith(".class")) {
                 val className = file.absolutePath
                     .substringAfter("$rootPath${File.separator}")
                     .substringBeforeLast(".")

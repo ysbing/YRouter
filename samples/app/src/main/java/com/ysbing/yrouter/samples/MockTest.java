@@ -11,7 +11,7 @@ import com.ysbing.yrouter.sampleslibrary2.Library2Api;
 public class MockTest {
 
     @YRouterMockValue("e22222222222")
-    private String rrrrrrrr = "111啦啦啦";
+    private String rrrrrrrr = "11啦啦";
 
     @YRouterMockValue("w222222222")
     int erewrere(float lala) {
