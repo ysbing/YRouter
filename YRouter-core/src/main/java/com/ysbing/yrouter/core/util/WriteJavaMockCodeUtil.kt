@@ -27,10 +27,16 @@ object WriteJavaMockCodeUtil {
     fun mockMethod(
         className: String,
         name: String,
-        retType: String, args: List<ParameterSpec>
+        retType: String,
+        args: List<ParameterSpec>
     ): String {
-        return "return ($retType)$CLASS_PACKAGE.$CLASS_NAME.INSTANCE.$METHOD_MOCK(" +
-                "\"$className\",\"$name\",\"$retType\",${getArgs(args)})"
+        return if (args.isNotEmpty()) {
+            "return ($retType)$CLASS_PACKAGE.$CLASS_NAME.INSTANCE.$METHOD_MOCK(" +
+                    "\"$className\",\"$name\",\"$retType\",${getArgs(args)})"
+        } else {
+            "return ($retType)$CLASS_PACKAGE.$CLASS_NAME.INSTANCE.$METHOD_MOCK(" +
+                    "\"$className\",\"$name\",\"$retType\")"
+        }
     }
 
     fun mockVoid(
@@ -38,11 +44,12 @@ object WriteJavaMockCodeUtil {
         name: String,
         args: List<ParameterSpec>
     ): String {
-        return "$CLASS_PACKAGE.$CLASS_NAME.INSTANCE.$METHOD_VOID_MOCK(\"$className\",\"$name\",${
-            getArgs(
-                args
-            )
-        })"
+        return if (args.isNotEmpty()) {
+            "$CLASS_PACKAGE.$CLASS_NAME.INSTANCE.$METHOD_VOID_MOCK(\"$className\",\"$name\",${
+            getArgs(args)})"
+        } else {
+            "$CLASS_PACKAGE.$CLASS_NAME.INSTANCE.$METHOD_VOID_MOCK(\"$className\",\"$name\")"
+        }
     }
 
     private fun getArgs(args: List<ParameterSpec>): String {

@@ -8,7 +8,6 @@ import com.ysbing.yrouter.core.util.WriteJavaMockCodeUtil.FIELD_MOCK
 import com.ysbing.yrouter.core.util.WriteJavaMockCodeUtil.METHOD_MOCK
 import com.ysbing.yrouter.core.util.WriteJavaMockCodeUtil.METHOD_VOID_MOCK
 import java.io.File
-import javax.lang.model.element.Modifier
 
 object WriteKotlinMockCodeUtil {
 
@@ -83,8 +82,13 @@ object WriteKotlinMockCodeUtil {
         retType: ClassName,
         args: List<ParameterSpec>
     ): String {
-        return "return $CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\"$className\",\"$name\"," +
-                "\"${retType.simpleName.toLowerCase()}\",${getArgs(args)}) as $retType"
+        return if (args.isNotEmpty()) {
+            "return $CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\"$className\",\"$name\"," +
+                    "\"${retType.simpleName.toLowerCase()}\",${getArgs(args)}) as $retType"
+        } else {
+            "return $CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\"$className\",\"$name\"," +
+                    "\"${retType.simpleName.toLowerCase()}\") as $retType"
+        }
     }
 
     fun mockVoid(
@@ -92,7 +96,11 @@ object WriteKotlinMockCodeUtil {
         name: String,
         args: List<ParameterSpec>
     ): String {
-        return "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\"$className\",\"$name\",${getArgs(args)})"
+        return if (args.isNotEmpty()) {
+            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\"$className\",\"$name\",${getArgs(args)})"
+        } else {
+            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\"$className\",\"$name\")"
+        }
     }
 
     private fun getArgs(args: List<ParameterSpec>): String {

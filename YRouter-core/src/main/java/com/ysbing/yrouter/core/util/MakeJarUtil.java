@@ -45,6 +45,9 @@ public class MakeJarUtil {
     }
 
     public static void buildJavaClass(String javaPath, String classPath, String[] buildTools) throws IOException {
+        if (!checkBuildFile(new File(javaPath), ".java")) {
+            return;
+        }
         List<String> files = new ArrayList<>();
         collectJavaFile(javaPath, files);
         if (files.isEmpty()) {
@@ -81,8 +84,27 @@ public class MakeJarUtil {
     }
 
     public static void buildKotlinClass(String kotlinPath, String classPath, String[] buildTools) {
-        boolean result = JvmCompile.INSTANCE.run(new File(kotlinPath), new File(classPath), buildTools);
+        File file = new File(kotlinPath);
+        if (!checkBuildFile(file, ".kt")) {
+            return;
+        }
+        boolean result = JvmCompile.INSTANCE.run(file, new File(classPath), buildTools);
         System.out.println("buildKotlinClass:" + kotlinPath + ":" + result);
+    }
+
+    private static Boolean checkBuildFile(File file, String suffix) {
+        if (file.isDirectory()) {
+            File[] listFiles = file.listFiles();
+            if (listFiles != null) {
+                for (File listFile : listFiles) {
+                    Boolean result = checkBuildFile(listFile, suffix);
+                    if (result) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return file.getAbsolutePath().endsWith(suffix);
     }
 
     public static void buildJar(File dir, File zipFile) throws IOException {
