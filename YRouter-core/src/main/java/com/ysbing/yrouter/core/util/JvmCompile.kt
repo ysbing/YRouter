@@ -2,8 +2,6 @@ package com.ysbing.yrouter.core.util
 
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.cli.common.messages.MessageRenderer
-import org.jetbrains.kotlin.cli.common.messages.PrintingMessageCollector
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.config.Services
 import java.io.File
@@ -23,12 +21,12 @@ object JvmCompile {
             skipRuntimeVersionCheck = true
             reportPerf = false
         }
-        execImpl(
-            PrintingMessageCollector(
-                System.out,
-                MessageRenderer.WITHOUT_PATHS, false
-            ), Services.EMPTY, args
-        )
-        //execImpl(MessageCollector.NONE, Services.EMPTY, args)
+//        execImpl(
+//            PrintingMessageCollector(
+//                System.out,
+//                MessageRenderer.WITHOUT_PATHS, false
+//            ), Services.EMPTY, args
+//        )
+        execImpl(MessageCollector.NONE, Services.EMPTY, args)
     }.code == 0
 }
