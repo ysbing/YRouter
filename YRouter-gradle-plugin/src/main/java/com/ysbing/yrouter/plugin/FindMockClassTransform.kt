@@ -2,14 +2,12 @@ package com.ysbing.yrouter.plugin
 
 import com.android.build.api.transform.Format
 import com.android.build.api.transform.QualifiedContent
-import com.android.build.api.transform.QualifiedContent.DefaultContentType
 import com.android.build.api.transform.Transform
 import com.android.build.api.transform.TransformInvocation
 import com.android.build.gradle.internal.pipeline.TransformManager
-import com.google.common.collect.ImmutableSet
-import com.google.common.collect.Sets
 import com.google.gson.Gson
 import com.ysbing.yrouter.core.FindClass
+import com.ysbing.yrouter.core.util.FileOperation
 import com.ysbing.yrouter.core.util.MakeJarUtil
 import com.ysbing.yrouter.core.util.WriteKotlinMockCodeUtil
 import org.gradle.api.Project
@@ -51,6 +49,7 @@ class FindMockClassTransform(private val project: Project) : Transform() {
         transformInvocation.outputProvider.deleteAll()
         transformInvocation.context.temporaryDir.deleteRecursively()
         val findClass = FindClass()
+        var mockDest: File? = null
         transformInvocation.inputs?.map {
             it.directoryInputs.map { dir ->
                 val dest = transformInvocation.outputProvider.getContentLocation(
@@ -74,24 +73,24 @@ class FindMockClassTransform(private val project: Project) : Transform() {
                     jar.scopes,
                     Format.JAR
                 )
+                if (mockDest == null) {
+                    mockDest = dest
+                }
                 jar.file.copyTo(dest, true)
                 findClass.add(jar.file)
             }
         }
+        val lib = File(transformInvocation.context.temporaryDir, "lib")
+        if (mockDest?.isFile == true) {
+            FileOperation.unZipAPk(mockDest!!.absolutePath, lib.absolutePath)
+        }
         findClass.load()
         val mockClassArray = findClass.getMockClassArray()
         val json = Gson().toJson(mockClassArray)
-        val lib = File(transformInvocation.context.temporaryDir, "lib")
         WriteKotlinMockCodeUtil.writeMockConfigJava(lib, json)
         MakeJarUtil.buildKotlinClass(
             lib.absolutePath, lib.absolutePath,
             arrayOf(getKotlinStdlibClassPath()?.absolutePath)
-        )
-        val mockDest = transformInvocation.outputProvider.getContentLocation(
-            System.currentTimeMillis().toString(),
-            ImmutableSet.of<QualifiedContent.ContentType>(DefaultContentType.CLASSES),
-            Sets.immutableEnumSet(QualifiedContent.Scope.EXTERNAL_LIBRARIES),
-            Format.JAR
         )
         MakeJarUtil.buildJar(lib, mockDest)
     }

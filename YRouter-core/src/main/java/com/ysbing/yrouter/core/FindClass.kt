@@ -1,9 +1,11 @@
 package com.ysbing.yrouter.core
 
+import com.ysbing.yrouter.api.YRouterSystem
 import com.ysbing.yrouter.api.mock.YRouterMockBean
 import com.ysbing.yrouter.api.mock.YRouterMockClass
 import com.ysbing.yrouter.api.mock.YRouterMockValue
 import jadx.api.JadxArgs
+import jadx.core.dex.nodes.ClassNode
 import jadx.core.dex.nodes.RootNode
 import jadx.core.utils.files.InputFile
 import java.io.File
@@ -25,8 +27,17 @@ class FindClass {
         root.load(loadedInputs)
     }
 
+    private fun searchClassByName(className: String): ClassNode? {
+        return root.searchClassByName(className)
+    }
+
     fun hasClass(className: String): Boolean {
-        return root.searchClassByName(className) != null
+        return searchClassByName(className) != null
+    }
+
+    fun hasYRouterSystem(className: String): Boolean {
+        val classNode = searchClassByName(className) ?: return false
+        return classNode.getAnnotation(YRouterSystem::class.java.name) != null
     }
 
     fun getMockClassArray(): List<YRouterMockBean> {

@@ -56,6 +56,7 @@ class CheckUsagesTransform(
     override fun transform(transformInvocation: TransformInvocation) {
         super.transform(transformInvocation)
         transformInvocation.outputProvider.deleteAll()
+        transformInvocation.context.temporaryDir.deleteRecursively()
         val variantName = transformInvocation.context.variantName
         val usagesInfo = HashSet<String>()
         android.applicationVariants.map { variant ->
