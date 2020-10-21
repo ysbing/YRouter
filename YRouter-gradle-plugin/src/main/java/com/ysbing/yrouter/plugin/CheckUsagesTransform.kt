@@ -1,6 +1,5 @@
 package com.ysbing.yrouter.plugin
 
-import com.android.Version
 import com.android.build.api.transform.Format
 import com.android.build.api.transform.QualifiedContent
 import com.android.build.api.transform.Transform
@@ -11,14 +10,14 @@ import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.build.gradle.internal.pipeline.TransformManager
 import com.android.build.gradle.internal.publishing.AndroidArtifacts
 import com.android.build.gradle.internal.scope.VariantScope
-import com.android.build.gradle.internal.variant.ApplicationVariantData
 import com.android.build.gradle.internal.variant.BaseVariantData
 import com.ysbing.yrouter.core.CheckClassObject
 import com.ysbing.yrouter.core.util.FileOperation
+import com.ysbing.yrouter.plugin.Constants.ANDROID_GRADLE_PLUGIN_VERSION
+import com.ysbing.yrouter.plugin.Constants.YROUTER
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ArtifactCollection
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
-import org.gradle.util.GradleVersion
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
@@ -55,42 +54,59 @@ class CheckUsagesTransform(
     @Suppress("PrivateApi")
     override fun transform(transformInvocation: TransformInvocation) {
         super.transform(transformInvocation)
-        transformInvocation.outputProvider.deleteAll()
-        transformInvocation.context.temporaryDir.deleteRecursively()
-        val variantName = transformInvocation.context.variantName
-        val usagesInfo = HashSet<String>()
-        android.applicationVariants.map { variant ->
-            if (variant.name == variantName) {
-                if (variant is ApplicationVariantImpl) {
-                    val aars: ArtifactCollection =
-                        if (Version.ANDROID_GRADLE_PLUGIN_VERSION > "4.0.2") {
-                            variant.variantData.variantDependencies.getArtifactCollection(
-                                AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
-                                AndroidArtifacts.ArtifactScope.ALL,
-                                AndroidArtifacts.ArtifactType.EXPLODED_AAR
-                            )
-                        } else {
-                            val scopeField = BaseVariantData::class.java.getDeclaredField("scope")
-                            scopeField.isAccessible = true
-                            val variantDataMethod =
-                                ApplicationVariantImpl::class.java.getDeclaredMethod("getVariantData")
-                            val scope = scopeField.get(variantDataMethod.invoke(variant))
-                            val getArtifactCollectionMethod =
-                                VariantScope::class.java.getDeclaredMethod(
-                                    "getArtifactCollection",
-                                    AndroidArtifacts.ConsumedConfigType::class.java,
-                                    AndroidArtifacts.ArtifactScope::class.java,
-                                    AndroidArtifacts.ArtifactType::class.java
+        try {
+            transformInvocation.outputProvider.deleteAll()
+            transformInvocation.context.temporaryDir.deleteRecursively()
+            val variantName = transformInvocation.context.variantName
+            val usagesInfo = HashSet<String>()
+            android.applicationVariants.map { variant ->
+                if (variant.name == variantName) {
+                    if (variant is ApplicationVariantImpl) {
+                        val aars: ArtifactCollection =
+                            if (ANDROID_GRADLE_PLUGIN_VERSION > "4.0.2") {
+                                variant.variantData.variantDependencies.getArtifactCollection(
+                                    AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
+                                    AndroidArtifacts.ArtifactScope.ALL,
+                                    AndroidArtifacts.ArtifactType.EXPLODED_AAR
                                 )
-                            getArtifactCollectionMethod.invoke(
-                                scope,
-                                AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
-                                AndroidArtifacts.ArtifactScope.ALL,
-                                AndroidArtifacts.ArtifactType.EXPLODED_AAR
-                            ) as ArtifactCollection
+                            } else {
+                                val scopeField =
+                                    BaseVariantData::class.java.getDeclaredField("scope")
+                                scopeField.isAccessible = true
+                                val variantDataMethod =
+                                    ApplicationVariantImpl::class.java.getDeclaredMethod("getVariantData")
+                                val scope = scopeField.get(variantDataMethod.invoke(variant))
+                                val getArtifactCollectionMethod =
+                                    VariantScope::class.java.getDeclaredMethod(
+                                        "getArtifactCollection",
+                                        AndroidArtifacts.ConsumedConfigType::class.java,
+                                        AndroidArtifacts.ArtifactScope::class.java,
+                                        AndroidArtifacts.ArtifactType::class.java
+                                    )
+                                getArtifactCollectionMethod.invoke(
+                                    scope,
+                                    AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
+                                    AndroidArtifacts.ArtifactScope.ALL,
+                                    AndroidArtifacts.ArtifactType.EXPLODED_AAR
+                                ) as ArtifactCollection
+                            }
+                        aars.artifacts.map { aar ->
+                            val file = File(aar.file, FindUsagesTransform.INDEX_USAGES_FILE)
+                            if (file.exists() && file.canRead()) {
+                                println("找到引用配置:$file")
+                                usagesInfo.addAll(file.readLines())
+                            }
                         }
-                    aars.artifacts.map { aar ->
-                        val file = File(aar.file, FindUsagesTransform.INDEX_USAGES_FILE)
+                    }
+                }
+            }
+            fun findProject(name: String) {
+                project.configurations.getAt(name).dependencies.map { depend ->
+                    if (depend is DefaultProjectDependency) {
+                        val file = File(
+                            depend.dependencyProject.buildDir,
+                            "${YROUTER}${File.separator}${FindUsagesTransform.INDEX_USAGES_FILE}"
+                        )
                         if (file.exists() && file.canRead()) {
                             println("找到引用配置:$file")
                             usagesInfo.addAll(file.readLines())
@@ -98,61 +114,50 @@ class CheckUsagesTransform(
                     }
                 }
             }
-        }
-        fun findProject(name: String) {
-            project.configurations.getAt(name).dependencies.map { depend ->
-                if (depend is DefaultProjectDependency) {
-                    val file = File(
-                        depend.dependencyProject.buildDir,
-                        "${YRouterPlugin.YROUTER}${File.separator}${FindUsagesTransform.INDEX_USAGES_FILE}"
+            findProject("api")
+            findProject("implementation")
+            val classInfo = checkUsages(usagesInfo)
+            val extractFiles = ArrayList<File>()
+            val extractClass = ArrayList<String>()
+            transformInvocation.inputs?.map {
+                it.directoryInputs.map { dir ->
+                    val dest = transformInvocation.outputProvider.getContentLocation(
+                        dir.name,
+                        dir.contentTypes,
+                        dir.scopes,
+                        Format.DIRECTORY
                     )
-                    if (file.exists() && file.canRead()) {
-                        println("找到引用配置:$file")
-                        usagesInfo.addAll(file.readLines())
-                    }
+                    dir.file.copyRecursively(dest, true)
+                    extractClass(
+                        extractFiles,
+                        extractClass,
+                        classInfo,
+                        dir.file,
+                        transformInvocation.context.temporaryDir
+                    )
+                }
+                it.jarInputs.map { jar ->
+                    val dest = transformInvocation.outputProvider.getContentLocation(
+                        jar.name,
+                        jar.contentTypes,
+                        jar.scopes,
+                        Format.JAR
+                    )
+                    jar.file.copyTo(dest, true)
+                    extractClass(
+                        extractFiles,
+                        extractClass,
+                        classInfo,
+                        jar.file,
+                        transformInvocation.context.temporaryDir
+                    )
                 }
             }
+            CheckClassObject.run(classInfo, extractFiles, extractClass)
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            println("QQQQQQQQQQ:${e.cause}")
         }
-        findProject("api")
-        findProject("implementation")
-        val classInfo = checkUsages(usagesInfo)
-        val extractFiles = ArrayList<File>()
-        val extractClass = ArrayList<String>()
-        transformInvocation.inputs?.map {
-            it.directoryInputs.map { dir ->
-                val dest = transformInvocation.outputProvider.getContentLocation(
-                    dir.name,
-                    dir.contentTypes,
-                    dir.scopes,
-                    Format.DIRECTORY
-                )
-                dir.file.copyRecursively(dest, true)
-                extractClass(
-                    extractFiles,
-                    extractClass,
-                    classInfo,
-                    dir.file,
-                    transformInvocation.context.temporaryDir
-                )
-            }
-            it.jarInputs.map { jar ->
-                val dest = transformInvocation.outputProvider.getContentLocation(
-                    jar.name,
-                    jar.contentTypes,
-                    jar.scopes,
-                    Format.JAR
-                )
-                jar.file.copyTo(dest, true)
-                extractClass(
-                    extractFiles,
-                    extractClass,
-                    classInfo,
-                    jar.file,
-                    transformInvocation.context.temporaryDir
-                )
-            }
-        }
-        CheckClassObject.run(classInfo, extractFiles, extractClass)
     }
 
     private fun checkUsages(usagesInfo: HashSet<String>): MutableMap<String, MutableList<String>> {

@@ -9,6 +9,7 @@ import com.ysbing.yrouter.core.DexBean
 import com.ysbing.yrouter.core.ExtractDexClassObject
 import com.ysbing.yrouter.core.util.MakeJarUtil
 import com.ysbing.yrouter.core.util.WriteCodeUtil
+import com.ysbing.yrouter.plugin.Constants.YROUTER
 import org.gradle.api.Project
 import org.jetbrains.kotlin.gradle.plugin.KotlinBasePluginWrapper
 import java.io.File
@@ -40,13 +41,18 @@ class MakeIndexJarTransform(
     }
 
     private fun getKotlinStdlibClassPath(): File? {
-        val pluginVersion = project.plugins.filterIsInstance<KotlinBasePluginWrapper>()
-            .firstOrNull()?.kotlinPluginVersion
-        val urlClassLoader = YRouterPlugin::class.java.classLoader as? URLClassLoader ?: return null
-        return urlClassLoader.urLs
-            .firstOrNull { it.toString().endsWith("$KOTLIN_STDLIB-$pluginVersion.jar") }
-            ?.let { File(it.toURI()) }
-            ?.takeIf(File::exists)
+        return if (project.plugins.hasPlugin("kotlin-android")) {
+            val pluginVersion = project.plugins.filterIsInstance<KotlinBasePluginWrapper>()
+                .firstOrNull()?.kotlinPluginVersion
+            val urlClassLoader =
+                YRouterPlugin::class.java.classLoader as? URLClassLoader ?: return null
+            urlClassLoader.urLs
+                .firstOrNull { it.toString().endsWith("$KOTLIN_STDLIB-$pluginVersion.jar") }
+                ?.let { File(it.toURI()) }
+                ?.takeIf(File::exists)
+        } else {
+            null
+        }
     }
 
     override fun transform(transformInvocation: TransformInvocation) {
@@ -68,7 +74,7 @@ class MakeIndexJarTransform(
         }
         val outputFileName = apkOutputFile?.name?.replace(".apk", "")?.replace("-debug", "")
         val outputFile = File(
-            "${project.buildDir}${File.separator}${YRouterPlugin.YROUTER}",
+            "${project.buildDir}${File.separator}${YROUTER}",
             "/${outputFileName}-yrouter_index.jar"
         )
         val startTime = System.currentTimeMillis()

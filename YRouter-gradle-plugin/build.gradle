@@ -19,8 +19,8 @@ repositories {
 
 dependencies {
     implementation gradleApi()
-    compileOnly 'com.android.tools.build:gradle:4.1.0'
     implementation(project(":YRouter-core"))
-    implementation 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.4.10'
+    compileOnly 'com.android.tools.build:gradle:4.1.0'
+    compileOnly 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.4.10'
     implementation 'com.google.code.gson:gson:2.8.6'
 }

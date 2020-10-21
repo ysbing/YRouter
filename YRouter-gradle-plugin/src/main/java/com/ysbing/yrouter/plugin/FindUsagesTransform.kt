@@ -4,11 +4,11 @@ import com.android.build.api.transform.Format
 import com.android.build.api.transform.QualifiedContent
 import com.android.build.api.transform.Transform
 import com.android.build.api.transform.TransformInvocation
-import com.android.build.api.variant.VariantInfo
 import com.android.build.gradle.LibraryExtension
 import com.android.build.gradle.internal.pipeline.TransformManager
 import com.ysbing.yrouter.core.util.DecompileUtil
 import com.ysbing.yrouter.core.util.MakeJarUtil
+import com.ysbing.yrouter.plugin.Constants.YROUTER
 import org.gradle.api.Project
 import java.io.File
 import java.util.*
@@ -44,7 +44,7 @@ class FindUsagesTransform(
         buildDir.deleteRecursively()
         val indexFile = ArrayList<File>()
         val usagesInfo = HashSet<String>()
-        project.configurations.getAt(YRouterPlugin.YROUTER).asPath.split(";").map {
+        project.configurations.getAt(YROUTER).asPath.split(";").map {
             indexFile.add(File(it))
         }
         transformInvocation.inputs?.map {
@@ -70,7 +70,7 @@ class FindUsagesTransform(
         }
         val usagesInfoFile = File(
             project.buildDir,
-            "${YRouterPlugin.YROUTER}${File.separator}$INDEX_USAGES_FILE"
+            "${YROUTER}${File.separator}$INDEX_USAGES_FILE"
         )
         usagesInfoFile.parentFile.mkdirs()
         usagesInfoFile.deleteRecursively()
@@ -80,7 +80,11 @@ class FindUsagesTransform(
         val variantName = transformInvocation.context.variantName
         library.libraryVariants.map { variant ->
             if (variant.name == variantName) {
-                variant.packageLibraryProvider.get().from(usagesInfoFile)
+                if (Constants.ANDROID_GRADLE_PLUGIN_VERSION < "3.3.0") {
+                    variant.packageLibrary.from(usagesInfoFile)
+                } else {
+                    variant.packageLibraryProvider.get().from(usagesInfoFile)
+                }
             }
         }
     }

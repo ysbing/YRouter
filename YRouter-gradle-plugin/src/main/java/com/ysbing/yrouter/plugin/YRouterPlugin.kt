@@ -4,18 +4,14 @@ import com.android.build.gradle.AppExtension
 import com.android.build.gradle.AppPlugin
 import com.android.build.gradle.LibraryExtension
 import com.android.build.gradle.LibraryPlugin
+import com.ysbing.yrouter.plugin.Constants.YROUTER
+import com.ysbing.yrouter.plugin.Constants.YROUTER_API_DEPENDENCIES
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPlugin
 
 
 open class YRouterPlugin : Plugin<Project> {
-    companion object {
-        const val YROUTER_VERSION = "1.1.0-SNAPSHOT"
-        const val YROUTER = "yrouter"
-        const val YROUTER_API_DEPENDENCIES = "com.ysbing.yrouter:YRouter-api:${YROUTER_VERSION}"
-        const val YROUTER_MOCK_DEPENDENCIES = "com.ysbing.yrouter:YRouter-mock:${YROUTER_VERSION}"
-    }
 
     override fun apply(project: Project) {
         createConfiguration(project)

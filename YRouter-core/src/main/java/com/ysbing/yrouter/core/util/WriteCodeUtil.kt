@@ -17,7 +17,7 @@ import javax.lang.model.element.Modifier
 class WriteCodeUtil(private val outPath: String) {
 
     init {
-        WriteKotlinMockCodeUtil.writeEmptyMock(outPath)
+        WriteJavaMockCodeUtil.writeEmptyMock(outPath)
     }
 
     fun run(classNode: ClassNode, dexBeanList: List<DexBean>) {
