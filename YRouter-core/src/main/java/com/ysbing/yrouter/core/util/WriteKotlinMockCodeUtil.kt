@@ -11,55 +11,6 @@ import java.io.File
 
 object WriteKotlinMockCodeUtil {
 
-    fun writeEmptyMock(outPath: String) {
-        val saveFile = File(outPath, "lib")
-        val classBuilder = TypeSpec.objectBuilder(CLASS_NAME)
-        val mockPairClassName = YRouterMockPair::class.asClassName()
-
-        val fieldBuilder = FunSpec.builder(FIELD_MOCK)
-        fieldBuilder.addParameter("className", String::class)
-        fieldBuilder.addParameter("name", String::class)
-        fieldBuilder.addParameter("retType", String::class)
-        fieldBuilder.returns(Any::class.asTypeName().copy(true))
-        fieldBuilder.addStatement("return null")
-
-        val methodBuilder = FunSpec.builder(METHOD_MOCK)
-        methodBuilder.addParameter("className", String::class)
-        methodBuilder.addParameter("name", String::class)
-        methodBuilder.addParameter("retType", String::class)
-        methodBuilder.addParameter("args", mockPairClassName, KModifier.VARARG)
-        methodBuilder.returns(Any::class.asTypeName().copy(true))
-        methodBuilder.addStatement("return null")
-
-        val voidMethodBuilder = FunSpec.builder(METHOD_VOID_MOCK)
-        voidMethodBuilder.addParameter("className", String::class)
-        voidMethodBuilder.addParameter("name", String::class)
-        voidMethodBuilder.addParameter("args", mockPairClassName, KModifier.VARARG)
-
-        classBuilder.addFunction(fieldBuilder.build())
-        classBuilder.addFunction(methodBuilder.build())
-        classBuilder.addFunction(voidMethodBuilder.build())
-
-        val file = FileSpec.builder(
-            CLASS_PACKAGE,
-            CLASS_NAME
-        ).addType(classBuilder.build()).build()
-        file.writeTo(saveFile)
-
-        val pairClassBuilder = TypeSpec.classBuilder(mockPairClassName)
-        pairClassBuilder.addFunction(
-            FunSpec.constructorBuilder()
-                .addParameter("className", String::class.asTypeName())
-                .addParameter("args", Any::class.asTypeName().copy(true))
-                .build()
-        )
-        val pairClassFile = FileSpec.builder(
-            mockPairClassName.packageName,
-            mockPairClassName.simpleName
-        ).addType(pairClassBuilder.build()).build()
-        pairClassFile.writeTo(saveFile)
-    }
-
     fun writeMockConfigJava(saveFile: File, config: String) {
         val classBuilder = TypeSpec.objectBuilder(WriteJavaMockCodeUtil.CLASS_NAME_MOCK_CONFIG)
         classBuilder.addProperty(

@@ -49,6 +49,9 @@ object WriteJavaCodeUtil {
         if (classNode.accessFlags.isProtected) {
             classBuilder.addModifiers(Modifier.PROTECTED)
         }
+        if (classNode.accessFlags.isPrivate) {
+            classBuilder.addModifiers(Modifier.PRIVATE)
+        }
         if (classType != DexBean.ClassType.INTERFACE && classNode.accessFlags.isAbstract) {
             classBuilder.addModifiers(Modifier.ABSTRACT)
         }
@@ -71,12 +74,14 @@ object WriteJavaCodeUtil {
         if (dexBean.nodeType == DexBean.NodeType.METHOD) {
             val method = dexBean.method
             val methodBuilder = MethodSpec.methodBuilder(method.name)
-            methodBuilder.addModifiers(Modifier.PUBLIC)
             if (method.accessFlags.isPublic) {
                 methodBuilder.addModifiers(Modifier.PUBLIC)
             }
             if (method.accessFlags.isProtected) {
                 methodBuilder.addModifiers(Modifier.PROTECTED)
+            }
+            if (method.accessFlags.isPrivate) {
+                methodBuilder.addModifiers(Modifier.PRIVATE)
             }
             if (method.accessFlags.isStatic) {
                 methodBuilder.addModifiers(Modifier.STATIC)
@@ -223,6 +228,9 @@ object WriteJavaCodeUtil {
             }
             if (field.accessFlags.isProtected) {
                 fieldBuilder.addModifiers(Modifier.PROTECTED)
+            }
+            if (field.accessFlags.isPrivate) {
+                fieldBuilder.addModifiers(Modifier.PRIVATE)
             }
             if (field.accessFlags.isStatic) {
                 fieldBuilder.addModifiers(Modifier.STATIC)

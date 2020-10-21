@@ -2,6 +2,7 @@ package com.ysbing.yrouter.plugin
 
 import com.android.build.gradle.AppExtension
 import com.android.build.gradle.AppPlugin
+import com.ysbing.yrouter.plugin.Constants.YROUTER_MOCK_DEPENDENCIES
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPlugin
 

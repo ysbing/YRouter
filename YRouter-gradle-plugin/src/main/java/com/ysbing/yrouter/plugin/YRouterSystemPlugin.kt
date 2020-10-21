@@ -4,12 +4,13 @@ import com.android.build.gradle.AppExtension
 import com.android.build.gradle.AppPlugin
 import com.android.build.gradle.LibraryExtension
 import com.android.build.gradle.LibraryPlugin
+import com.ysbing.yrouter.plugin.Constants.YROUTER_API_DEPENDENCIES
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaPlugin
 
-class YRouterSystemPlugin : YRouterPlugin() {
+class YRouterSystemPlugin : Plugin<Project> {
     override fun apply(project: Project) {
-        super.apply(project)
         project.dependencies.add(
             JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME,
             YROUTER_API_DEPENDENCIES

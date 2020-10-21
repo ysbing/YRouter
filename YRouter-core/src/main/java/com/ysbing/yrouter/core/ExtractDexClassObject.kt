@@ -196,15 +196,20 @@ object ExtractDexClassObject {
     }
 
     private fun checkField(fieldNode: FieldNode): Boolean {
-        return fieldNode.name != "INSTANCE" && fieldNode.name != "Companion"
+        return fieldNode.name != "INSTANCE"
+                && fieldNode.name != "Companion"
                 && !fieldNode.name.contains("_\$_")
                 && fieldNode.parentClass.shortName != "DefaultImpls"
+                && !fieldNode.parentClass.shortName.contains("AnonymousClass")
     }
 
     private fun checkMethod(methodNode: MethodNode): Boolean {
-        return methodNode.name != "<clinit>" && methodNode.name != "<init>"
+        return methodNode.name != "<clinit>"
+                && methodNode.name != "<init>"
                 && !methodNode.name.contains("_\$_")
+                && !methodNode.name.contains("access\$")
                 && methodNode.parentClass.shortName != "DefaultImpls"
+                && !methodNode.parentClass.shortName.contains("AnonymousClass")
                 && methodNode.parentClass.fields.find {
             it.name.capitalize() == methodNode.name.substringAfter("set")
                     || it.name.capitalize() == methodNode.name.substringAfter("get")

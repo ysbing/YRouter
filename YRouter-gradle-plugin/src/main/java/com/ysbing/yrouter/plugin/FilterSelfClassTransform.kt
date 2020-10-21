@@ -9,6 +9,7 @@ import com.ysbing.yrouter.core.FindClass
 import com.ysbing.yrouter.core.util.FileOperation
 import com.ysbing.yrouter.core.util.MakeJarUtil
 import com.ysbing.yrouter.core.util.Md5Util
+import com.ysbing.yrouter.plugin.Constants.YROUTER
 import org.gradle.api.Project
 import java.io.File
 import java.util.*
@@ -37,7 +38,7 @@ class FilterSelfClassTransform(private val project: Project) : Transform() {
         transformInvocation.context.temporaryDir.deleteRecursively()
         val indexFile = ArrayList<String>()
         val preCopyFileMap = mutableMapOf<String, Pair<File, File>>()
-        project.configurations.getAt(YRouterPlugin.YROUTER).asPath.split(";").map {
+        project.configurations.getAt(YROUTER).asPath.split(";").map {
             indexFile.add(Md5Util.getMD5Str(File(it)))
         }
         val findClass = FindClass()
