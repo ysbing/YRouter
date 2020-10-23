@@ -94,7 +94,7 @@ class FilterSelfClassTransform(private val project: Project) : Transform() {
                 val className = file.absolutePath
                     .substringAfter("$rootPath${File.separator}")
                     .substringBeforeLast(".")
-                    .replace("/", ".")
+                    .replace(File.separator, ".")
                 if (findClass.hasClass(className)) {
                     file.deleteRecursively()
                 }
