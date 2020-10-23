@@ -3,6 +3,7 @@ package com.ysbing.yrouter.core.util
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
+import org.jetbrains.kotlin.com.intellij.openapi.util.SystemInfo
 import org.jetbrains.kotlin.config.Services
 import java.io.File
 
@@ -14,7 +15,12 @@ object JvmCompile {
             destination = output.absolutePath
             classpath = System.getProperty("java.class.path")
             for (buildTool in buildTools) {
-                classpath += ":$buildTool"
+                classpath += if (SystemInfo.isWindows) {
+                    ";"
+                } else {
+                    ":"
+                }
+                classpath += buildTool
             }
             noStdlib = true
             noReflect = true

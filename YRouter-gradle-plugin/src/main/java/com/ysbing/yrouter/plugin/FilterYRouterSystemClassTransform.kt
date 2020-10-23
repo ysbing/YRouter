@@ -96,7 +96,7 @@ class FilterYRouterSystemClassTransform(private val project: Project) : Transfor
                 val className = file.absolutePath
                     .substringAfter("$rootPath${File.separator}")
                     .substringBeforeLast(".")
-                    .replace("/", ".")
+                    .replace(File.separator, ".")
                 if (findClass.hasYRouterSystem(className)) {
                     file.deleteRecursively()
                 }

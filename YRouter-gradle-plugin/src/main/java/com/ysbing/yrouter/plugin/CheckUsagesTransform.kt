@@ -156,7 +156,6 @@ class CheckUsagesTransform(
             CheckClassObject.run(classInfo, extractFiles, extractClass)
         } catch (e: Throwable) {
             e.printStackTrace()
-            println("QQQQQQQQQQ:${e.cause}")
         }
     }
 
