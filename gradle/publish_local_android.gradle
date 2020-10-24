@@ -14,7 +14,7 @@ task androidJavadocs(type: Javadoc) {
             owner.classpath += variant.javaCompileProvider.get().classpath
         }
     }
-    exclude '**/R.html', '**/R.*.html', '**/index.html'
+    exclude '**/R.html', '**/R.*.html', '**/index.html', '**/YRouterMock.kt'
 }
 
 task sourcesJar(type: Jar) {
@@ -25,6 +25,7 @@ task sourcesJar(type: Jar) {
 task javadocJar(type: Jar, dependsOn: androidJavadocs) {
     classifier = 'javadoc'
     from androidJavadocs.destinationDir
+    androidJavadocs.options.encoding = "UTF-8"
 }
 
 artifacts {
