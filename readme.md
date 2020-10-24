@@ -1,3 +1,7 @@
+
+![](https://github.com/ysbing/YRouter/wiki/assets/video_start.gif)
+右键动图新标签页打开效果更佳
+
 ## 一、简介
 
 YRouter是一款性能0损耗的Android模块路由。
@@ -71,5 +75,3 @@ public class JavaTest {
 进阶的内容较为复杂，仅仅简单使用的话上面足够了
 * [数据模拟](mock.md)
 * [反射优化](reflection.md)
-
-![](https://github.com/ysbing/YRouter/wiki/assets/video_start.gif)
