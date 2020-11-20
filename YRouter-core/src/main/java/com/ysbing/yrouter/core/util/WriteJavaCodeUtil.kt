@@ -8,64 +8,84 @@ import com.ysbing.yrouter.core.util.WriteCodeUtil.Companion.writeEmptyJava
 import jadx.core.dex.instructions.args.ArgType
 import jadx.core.dex.nodes.ClassNode
 import java.io.File
-import java.io.IOException
-import java.lang.reflect.Type
 import javax.lang.model.element.Modifier
 
 /**
  * 将解析后的dex，写入Java文件
  */
-object WriteJavaCodeUtil {
-    fun writeJava(outPath: String, classNode: ClassNode, dexBeanList: List<DexBean>) {
+class WriteJavaCodeUtil(
+    private val outPath: String,
+    private val classNode: ClassNode,
+    private val dexBeanList: List<DexBean>
+) {
+    fun writeJava() {
         val saveFile = File(outPath, "main")
-        val classBuilder = newClassBuilder(classNode, outPath)
+        val classBuilder = newClassBuilder(classNode)
         for (dexBean in dexBeanList) {
             beanInfo(classBuilder, dexBean, outPath)
+        }
+        //空枚举类JavaPoet写入会抛异常
+        if (classNode.isEnum && classBuilder.enumConstants.isEmpty()) {
+            return
         }
         val file = JavaFile.builder(
             classNode.getPackage(),
             classBuilder.build()
         ).build()
-        try {
-            file.writeTo(saveFile)
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
+        file.writeTo(saveFile)
     }
 
-    private fun newClassBuilder(classNode: ClassNode, outPath: String): TypeSpec.Builder {
+    private fun newClassBuilder(
+        classNode: ClassNode,
+        isInner: Boolean = false
+    ): TypeSpec.Builder {
         val classType = ExtractDexClassObject.getClassTypeFromClassNode(classNode)
         val classBuilder = when (classType) {
             DexBean.ClassType.INTERFACE -> {
                 TypeSpec.interfaceBuilder(classNode.classInfo.shortName)
             }
+            DexBean.ClassType.ENUM -> {
+                TypeSpec.enumBuilder(classNode.classInfo.shortName)
+            }
             else -> {
                 TypeSpec.classBuilder(classNode.classInfo.shortName)
             }
         }
-        if (classNode.accessFlags.isPublic) {
-            classBuilder.addModifiers(Modifier.PUBLIC)
+        when {
+            classNode.accessFlags.isPublic -> {
+                classBuilder.addModifiers(Modifier.PUBLIC)
+            }
+            classNode.accessFlags.isProtected -> {
+                classBuilder.addModifiers(Modifier.PROTECTED)
+            }
+            classNode.accessFlags.isPrivate -> {
+                classBuilder.addModifiers(Modifier.PRIVATE)
+            }
         }
-        if (classNode.accessFlags.isProtected) {
-            classBuilder.addModifiers(Modifier.PROTECTED)
-        }
-        if (classNode.accessFlags.isPrivate) {
-            classBuilder.addModifiers(Modifier.PRIVATE)
-        }
-        if (classType != DexBean.ClassType.INTERFACE && classNode.accessFlags.isAbstract) {
+        if (classType == DexBean.ClassType.CLASS && classNode.accessFlags.isAbstract) {
             classBuilder.addModifiers(Modifier.ABSTRACT)
         }
-        if (classNode.accessFlags.isStatic) {
+        if (classType != DexBean.ClassType.ENUM && classNode.accessFlags.isFinal) {
+            classBuilder.addModifiers(Modifier.FINAL)
+        }
+        if (isInner && classNode.accessFlags.isStatic) {
             classBuilder.addModifiers(Modifier.STATIC)
         }
-        if (classNode.accessFlags.isFinal) {
-            classBuilder.addModifiers(Modifier.FINAL)
+        if (classNode.accessFlags.isNative) {
+            classBuilder.addModifiers(Modifier.NATIVE)
+        }
+        classNode.generics?.map {
+            classBuilder.addTypeVariable(TypeVariableName.get(it.genericType.toString()))
+        }
+        if (classType != DexBean.ClassType.ENUM) {
+            classNode.interfaces.map {
+                val interfaceClassName = getTypeNameFromArgType(it, true)
+                classBuilder.addSuperinterface(interfaceClassName)
+            }
         }
         val superClass = classNode.superClass
         if (superClass != null && classType == DexBean.ClassType.CLASS) {
-            val names = getPackageNameAndClassName(superClass.getObject())
-            classBuilder.superclass(ClassName.get(names[0], names[1]))
-            writeEmptyJava(outPath, names[0], names[1])
+            classBuilder.superclass(getTypeNameFromArgType(superClass))
         }
         return classBuilder
     }
@@ -73,149 +93,119 @@ object WriteJavaCodeUtil {
     private fun beanInfo(classBuilder: TypeSpec.Builder, dexBean: DexBean, outPath: String) {
         if (dexBean.nodeType == DexBean.NodeType.METHOD) {
             val method = dexBean.method
-            val methodBuilder = MethodSpec.methodBuilder(method.name)
-            if (method.accessFlags.isPublic) {
-                methodBuilder.addModifiers(Modifier.PUBLIC)
+            val methodBuilder =
+                if (method.accessFlags.isConstructor) {
+                    if (dexBean.classType == DexBean.ClassType.INTERFACE) {
+                        return
+                    }
+                    MethodSpec.constructorBuilder()
+                } else {
+                    MethodSpec.methodBuilder(method.name)
+                }
+            when {
+                method.accessFlags.isPublic -> {
+                    methodBuilder.addModifiers(Modifier.PUBLIC)
+                }
+                method.accessFlags.isProtected -> {
+                    methodBuilder.addModifiers(Modifier.PROTECTED)
+                }
+                method.accessFlags.isPrivate -> {
+                    methodBuilder.addModifiers(Modifier.PRIVATE)
+                }
             }
-            if (method.accessFlags.isProtected) {
-                methodBuilder.addModifiers(Modifier.PROTECTED)
-            }
-            if (method.accessFlags.isPrivate) {
-                methodBuilder.addModifiers(Modifier.PRIVATE)
-            }
-            if (method.accessFlags.isStatic) {
+            if (method.accessFlags.isStatic && !method.accessFlags.isConstructor) {
                 methodBuilder.addModifiers(Modifier.STATIC)
             }
             if (method.accessFlags.isFinal) {
                 methodBuilder.addModifiers(Modifier.FINAL)
             }
-            for (arg in method.argRegs) {
-                if (arg.type.isPrimitive) {
-                    methodBuilder.addParameter(
-                        getPrimitiveClassName(arg.type.toString()).first,
-                        WriteCodeUtil.getSafeMethodName(arg)
-                    )
-                } else {
-                    val argType =
-                        if (arg.type != ArgType.UNKNOWN) arg.type else arg.initType
-                    if (argType.isGeneric) {
-                        val names = getPackageNameAndClassName(argType.getObject())
-                        writeEmptyJava(outPath, names[0], names[1])
-                        val className = ClassName.get(names[0], names[1])
-                        val typeNames = arrayOfNulls<ClassName>(argType.genericTypes.size)
-                        for (i in argType.genericTypes.indices) {
-                            val genericType = argType.genericTypes[i]
-                            val genericTypeNames =
-                                getPackageNameAndClassName(genericType.getObject())
-                            typeNames[i] = ClassName.get(genericTypeNames[0], genericTypeNames[1])
-                            writeEmptyJava(outPath, genericTypeNames[0], genericTypeNames[1])
-                        }
-                        methodBuilder.addParameter(
-                            ParameterizedTypeName.get(className, *typeNames),
-                            WriteCodeUtil.getSafeMethodName(arg)
-                        )
-                    } else {
-                        val className = if (argType.isArray) {
-                            if (argType.arrayElement.isPrimitive) {
-                                val pair = getPrimitiveClassName(argType.arrayElement.toString())
-                                ArrayTypeName.of(pair.first)
-                            } else {
-                                val names =
-                                    getPackageNameAndClassName(argType.arrayElement.`object`)
-                                writeEmptyJava(outPath, names[0], names[1])
-                                ArrayTypeName.of(ClassName.get(names[0], names[1]))
-                            }
-                        } else {
-                            val names = getPackageNameAndClassName(argType.`object`)
-                            writeEmptyJava(outPath, names[0], names[1])
-                            ClassName.get(names[0], names[1])
-                        }
-                        methodBuilder.addParameter(
-                            className,
-                            WriteCodeUtil.getSafeMethodName(arg)
-                        )
-                    }
-                }
+            if (dexBean.classNode.accessFlags.isAbstract && method.accessFlags.isAbstract) {
+                methodBuilder.addModifiers(Modifier.ABSTRACT)
             }
-            if (method.returnType != null) {
-                if (method.returnType.isPrimitive) {
-                    val (retClassName, _) = getPrimitiveClassName(method.returnType.toString())
-                    if (retClassName != Void::class.java) {
+            methodBuilder.modifiers.contains(Modifier.ABSTRACT)
+            if (dexBean.classNode.accessFlags.isInterface &&
+                !(method.accessFlags.isAbstract || method.accessFlags.isStatic)
+            ) {
+                methodBuilder.addModifiers(Modifier.DEFAULT)
+            }
+            for (arg in method.argRegs) {
+                val argType =
+                    if (arg.type != ArgType.UNKNOWN) arg.type else arg.initType
+                methodBuilder.addParameter(
+                    getTypeNameFromArgType(argType),
+                    WriteCodeUtil.getSafeMethodName(arg)
+                )
+            }
+            method.generics?.map {
+                methodBuilder.addTypeVariable(TypeVariableName.get(it.genericType.toString()))
+            }
+            if (method.accessFlags.isConstructor) {
+                if (!dexBean.superInfo1.isNullOrEmpty()) {
+                    val code = StringBuilder()
+                    code.append("super(")
+                    dexBean.superInfo1.map {
+                        val typeName = getTypeNameFromArgType(it)
+                        code.append("(").append(typeName.toString())
+                            .append(")(java.lang.Object)null,")
+                    }
+                    code.deleteCharAt(code.length - 1)
+                    code.append(")")
+                    methodBuilder.addStatement(code.toString().replace("$", "$$"))
+                } else if (!dexBean.superInfo2.isNullOrEmpty()) {
+                    val code = StringBuilder()
+                    code.append("super(")
+                    dexBean.superInfo2.map {
+                        code.append("(").append(it).append(")(java.lang.Object)null,")
+                    }
+                    code.deleteCharAt(code.length - 1)
+                    code.append(")")
+                    methodBuilder.addStatement(code.toString().replace("$", "$$"))
+                }
+            } else {
+                if (isPrimitive(method.returnType)) {
+                    val retClassName = getPrimitiveClassName(method.returnType.toString())
+                    if (method.returnType != ArgType.VOID) {
                         methodBuilder.returns(retClassName)
+                        if (!methodBuilder.modifiers.contains(Modifier.ABSTRACT)) {
+                            methodBuilder.addStatement(
+                                WriteJavaMockCodeUtil.mockMethod(
+                                    method.parentClass.fullName,
+                                    method.name,
+                                    retClassName.toString(),
+                                    methodBuilder.parameters
+                                )
+                            )
+                        }
+                    } else {
+                        if (!methodBuilder.modifiers.contains(Modifier.ABSTRACT)) {
+                            methodBuilder.addStatement(
+                                WriteJavaMockCodeUtil.mockVoid(
+                                    method.parentClass.fullName,
+                                    method.name, methodBuilder.parameters
+                                )
+                            )
+                        }
+                    }
+                } else {
+                    val retClassName = getTypeNameFromArgType(method.returnType)
+                    methodBuilder.returns(retClassName)
+                    if (!methodBuilder.modifiers.contains(Modifier.ABSTRACT)) {
                         methodBuilder.addStatement(
                             WriteJavaMockCodeUtil.mockMethod(
                                 method.parentClass.fullName,
                                 method.name,
-                                retClassName.typeName,
+                                retClassName.toString(),
                                 methodBuilder.parameters
                             )
                         )
-                    } else {
-                        methodBuilder.addStatement(
-                            WriteJavaMockCodeUtil.mockVoid(
-                                method.parentClass.fullName,
-                                method.name, methodBuilder.parameters
-                            )
-                        )
                     }
-                } else {
-                    val names = getPackageNameAndClassName(method.returnType.getObject())
-                    val retClassName = ClassName.get(names[0], names[1])
-                    methodBuilder.returns(retClassName)
-                    writeEmptyJava(outPath, names[0], names[1])
-                    methodBuilder.addStatement(
-                        WriteJavaMockCodeUtil.mockMethod(
-                            method.parentClass.fullName,
-                            method.name,
-                            retClassName.toString(),
-                            methodBuilder.parameters
-                        )
-                    )
                 }
             }
             classBuilder.addMethod(methodBuilder.build())
         } else if (dexBean.nodeType == DexBean.NodeType.FIELD) {
             val field = dexBean.field
             val fieldBuilder: FieldSpec.Builder
-            if (field.type.isPrimitive) {
-                val (first, _) = getPrimitiveClassName(field.type.toString())
-                fieldBuilder = FieldSpec.builder(first, field.name)
-            } else {
-                if (field.type.isGeneric) {
-                    val names = getPackageNameAndClassName(field.type.getObject())
-                    writeEmptyJava(outPath, names[0], names[1])
-                    val className = ClassName.get(names[0], names[1])
-                    val typeNames = arrayOfNulls<ClassName>(field.type.genericTypes.size)
-                    for (i in field.type.genericTypes.indices) {
-                        val genericType = field.type.genericTypes[i]
-                        val genericTypeNames = getPackageNameAndClassName(genericType.getObject())
-                        typeNames[i] = ClassName.get(genericTypeNames[0], genericTypeNames[1])
-                        writeEmptyJava(outPath, genericTypeNames[0], genericTypeNames[1])
-                    }
-                    fieldBuilder = FieldSpec.builder(
-                        ParameterizedTypeName.get(className, *typeNames),
-                        field.name
-                    )
-                } else {
-                    val className = if (field.type.isArray) {
-                        if (field.type.arrayElement.isPrimitive) {
-                            val pair =
-                                getPrimitiveClassName(field.type.arrayElement.toString())
-                            ArrayTypeName.of(pair.first)
-                        } else {
-                            val names =
-                                getPackageNameAndClassName(field.type.arrayElement.`object`)
-                            writeEmptyJava(outPath, names[0], names[1])
-                            ArrayTypeName.of(ClassName.get(names[0], names[1]))
-                        }
-                    } else {
-                        val names = getPackageNameAndClassName(field.type.`object`)
-                        writeEmptyJava(outPath, names[0], names[1])
-                        ClassName.get(names[0], names[1])
-                    }
-                    fieldBuilder = FieldSpec.builder(className, field.name)
-                }
-            }
+            fieldBuilder = FieldSpec.builder(getTypeNameFromArgType(field.type), field.name)
             fieldBuilder.initializer(
                 WriteJavaMockCodeUtil.mockField(
                     field.parentClass.fullName,
@@ -223,72 +213,172 @@ object WriteJavaCodeUtil {
                     fieldBuilder.build().type.toString()
                 )
             )
-            if (field.accessFlags.isPublic) {
-                fieldBuilder.addModifiers(Modifier.PUBLIC)
+            when {
+                field.accessFlags.isPublic -> {
+                    fieldBuilder.addModifiers(Modifier.PUBLIC)
+                }
+                field.accessFlags.isProtected -> {
+                    fieldBuilder.addModifiers(Modifier.PROTECTED)
+                }
+                field.accessFlags.isPrivate -> {
+                    fieldBuilder.addModifiers(Modifier.PRIVATE)
+                }
             }
-            if (field.accessFlags.isProtected) {
-                fieldBuilder.addModifiers(Modifier.PROTECTED)
-            }
-            if (field.accessFlags.isPrivate) {
-                fieldBuilder.addModifiers(Modifier.PRIVATE)
-            }
-            if (field.accessFlags.isStatic) {
+            //内部类不能具有静态声明
+            if (dexBean.classType != DexBean.ClassType.CLASS
+                || field.parentClass.parentClass == null
+                && field.accessFlags.isStatic
+            ) {
                 fieldBuilder.addModifiers(Modifier.STATIC)
             }
             if (field.accessFlags.isFinal) {
                 fieldBuilder.addModifiers(Modifier.FINAL)
             }
-            classBuilder.addField(fieldBuilder.build())
+            if (dexBean.classType == DexBean.ClassType.ENUM) {
+                classBuilder.addEnumConstant(field.name)
+            } else {
+                classBuilder.addField(fieldBuilder.build())
+            }
         } else if (dexBean.nodeType == DexBean.NodeType.INNER) {
             val inner = dexBean.inner
             inner.keys.map {
                 inner[it]?.groupBy { bean ->
                     bean.classNode
-                }?.map { map ->
-                    val innerClassBuilder = newClassBuilder(map.key, outPath)
+                }?.map inner@{ map ->
+                    val innerClassBuilder = newClassBuilder(map.key, true)
                     map.value.map { bean ->
                         beanInfo(innerClassBuilder, bean, outPath)
                     }
-                    classBuilder.addType(innerClassBuilder.build())
+                    if (!map.key.isEnum || innerClassBuilder.enumConstants.isNotEmpty()) {
+                        classBuilder.addType(innerClassBuilder.build())
+                    }
                 }
             }
         }
     }
 
-    private fun getPrimitiveClassName(typeName: String): Pair<Type, String> {
-        return when (typeName) {
-            "boolean" -> {
-                Pair(Boolean::class.java, "false")
+    private fun getPrimitiveClassName(typeName: String): TypeName {
+        val type = JavaToKotlinObj.getPrimitiveType(typeName)
+        return if (type.second) {
+            TypeName.get(type.first).box()
+        } else {
+            TypeName.get(type.first)
+        }
+    }
+
+    private fun isPrimitive(arg: ArgType): Boolean {
+        if (arg.isPrimitive) {
+            return true
+        }
+        if (arg.isObject) {
+            val primitiveType = JavaToKotlinObj.getPrimitiveType(arg.`object`)
+            if (primitiveType.first != Any::class.java) {
+                return true
             }
-            "char" -> {
-                Pair(Char::class.java, "'0'")
+        }
+        return false
+    }
+
+    private fun getClassName(
+        packageName: String,
+        className: String,
+        isInterface: Boolean = false,
+        genericCount: Int = 0
+    ): ClassName {
+        val classNames = className.split("$")
+        return if (classNames.size > 1) {
+            ClassName.get(
+                packageName,
+                classNames[0],
+                *classNames.subList(1, classNames.size).toTypedArray()
+            )
+        } else {
+            ClassName.get(packageName, classNames[0])
+        }.apply {
+            writeEmptyJava(
+                outPath,
+                this.packageName(),
+                this.simpleNames(),
+                isInterface,
+                genericCount
+            )
+        }
+    }
+
+    private fun getTypeNameFromArgType(argType: ArgType, isInterface: Boolean = false): TypeName {
+        return when {
+            isPrimitive(argType) -> {
+                getPrimitiveClassName(argType.toString())
             }
-            "byte" -> {
-                Pair(Byte::class.java, "0")
+            argType.wildcardType != null -> {
+                getWildcardTypeName(argType)
             }
-            "short" -> {
-                Pair(Short::class.java, "0")
+            argType.isGenericType -> {
+                val genericTypeNames = getPackageNameAndClassName(argType.`object`)
+                return getClassName(genericTypeNames[0], genericTypeNames[1])
             }
-            "int" -> {
-                Pair(Int::class.java, "0")
+            argType.isGeneric -> {
+                getGenericTypeName(argType, isInterface)
             }
-            "float" -> {
-                Pair(Float::class.java, "0f")
-            }
-            "long" -> {
-                Pair(Long::class.java, "0L")
-            }
-            "double" -> {
-                Pair(Double::class.java, "0f")
-            }
-            "void" -> {
-                Pair(Void::class.java, "null")
-            }
-            String::class.java.name -> {
-                Pair(String::class.java, "\"\"")
+            argType.isArray -> {
+                getArrayTypeName(argType.arrayElement)
             }
             else -> {
-                Pair(Any::class.java, "null")
+                val names = getPackageNameAndClassName(argType.`object`)
+                getClassName(names[0], names[1], isInterface)
+            }
+        }
+    }
+
+    private fun getGenericTypeName(argType: ArgType, isInterface: Boolean = false): TypeName {
+        if (argType.innerType != null) {
+            return getTypeNameFromArgType(argType.innerType)
+        }
+        val names = getPackageNameAndClassName(argType.`object`)
+        val className =
+            getClassName(
+                names[0],
+                names[1],
+                isInterface,
+                argType.genericTypes?.size ?: 0
+            )
+        val typeNames = ArrayList<TypeName>()
+        argType.genericTypes?.map { genericType ->
+            typeNames.add(getTypeNameFromArgType(genericType))
+        }
+        return ParameterizedTypeName.get(className, *typeNames.toTypedArray())
+    }
+
+    private fun getArrayTypeName(argType: ArgType): TypeName {
+        return if (isPrimitive(argType)) {
+            val pair = getPrimitiveClassName(argType.toString())
+            ArrayTypeName.of(pair)
+        } else {
+            if (argType.isArray) {
+                getArrayTypeName(argType.arrayElement)
+            } else {
+                val names =
+                    getPackageNameAndClassName(argType.`object`)
+                ArrayTypeName.of(getClassName(names[0], names[1]))
+            }
+        }
+    }
+
+    private fun getWildcardTypeName(argType: ArgType): TypeName {
+        val typeName = getTypeNameFromArgType(argType.wildcardType).box()
+        typeName.isPrimitive
+        return when (argType.wildcardBound) {
+            ArgType.WildcardBound.EXTENDS -> {
+                WildcardTypeName.subtypeOf(typeName)
+            }
+            ArgType.WildcardBound.SUPER -> {
+                WildcardTypeName.supertypeOf(typeName)
+            }
+            ArgType.WildcardBound.UNBOUND -> {
+                WildcardTypeName.subtypeOf(TypeName.OBJECT)
+            }
+            else -> {
+                typeName
             }
         }
     }

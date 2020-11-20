@@ -78,7 +78,8 @@ object WriteJavaMockCodeUtil {
         name: String,
         retType: String
     ): String {
-        return "($retType)$CLASS_PACKAGE.$CLASS_NAME.$FIELD_MOCK(\"$className\",\"$name\",\"$retType\")"
+        return "($retType)$CLASS_PACKAGE.$CLASS_NAME.$FIELD_MOCK(\n\"$className\",\n\"$name\",\n\"$retType\")"
+            .replace("$", "$$")
     }
 
     fun mockMethod(
@@ -88,12 +89,12 @@ object WriteJavaMockCodeUtil {
         args: List<ParameterSpec>
     ): String {
         return if (args.isNotEmpty()) {
-            "return ($retType)$CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(" +
-                    "\"$className\",\"$name\",\"$retType\",${getArgs(args)})"
+            "return ($retType)$CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\n" +
+                    "\"$className\",\n\"$name\",\n\"$retType\",${getArgs(args)})"
         } else {
-            "return ($retType)$CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(" +
-                    "\"$className\",\"$name\",\"$retType\")"
-        }
+            "return ($retType)$CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\n" +
+                    "\"$className\",\n\"$name\",\n\"$retType\")"
+        }.replace("$", "$$")
     }
 
     fun mockVoid(
@@ -102,11 +103,12 @@ object WriteJavaMockCodeUtil {
         args: List<ParameterSpec>
     ): String {
         return if (args.isNotEmpty()) {
-            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\"$className\",\"$name\",${
-            getArgs(args)})"
+            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\n\"$className\",\n\"$name\",${
+                getArgs(args)
+            })"
         } else {
-            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\"$className\",\"$name\")"
-        }
+            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\n\"$className\",\n\"$name\")"
+        }.replace("$", "$$")
     }
 
     private fun getArgs(args: List<ParameterSpec>): String {
@@ -116,10 +118,10 @@ object WriteJavaMockCodeUtil {
         val str = StringBuilder()
         args.map {
             str.append("\nnew ${YRouterMockPair::class.java.name}(\n\"")
-            str.append(it.type).append("\",").append(it.name)
+            str.append(it.type).append("\",\n").append(it.name)
             str.append("),")
         }
-        str.deleteAt(str.length - 1)
+        str.deleteCharAt(str.length - 1)
         return str.toString()
     }
 }

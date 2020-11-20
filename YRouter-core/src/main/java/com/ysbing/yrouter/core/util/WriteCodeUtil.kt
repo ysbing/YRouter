@@ -1,11 +1,10 @@
 package com.ysbing.yrouter.core.util
 
 import com.squareup.javapoet.JavaFile
+import com.squareup.javapoet.TypeSpec
 import com.squareup.javapoet.TypeVariableName
 import com.ysbing.yrouter.core.DexBean
-import com.ysbing.yrouter.core.util.WriteJavaCodeUtil.writeJava
-import com.ysbing.yrouter.core.util.WriteKotlinCodeUtil.writeKotlin
-import jadx.core.dex.instructions.args.ArgType
+import jadx.core.dex.attributes.AType
 import jadx.core.dex.instructions.args.RegisterArg
 import jadx.core.dex.nodes.ClassNode
 import java.io.File
@@ -21,51 +20,145 @@ class WriteCodeUtil(private val outPath: String) {
     }
 
     fun run(classNode: ClassNode, dexBeanList: List<DexBean>) {
-        if (classNode.getAnnotation(sKotlinFlag) == null) {
-            writeJava(outPath, classNode, dexBeanList)
-        } else {
-            writeKotlin(outPath, classNode, dexBeanList)
+        try {
+            if (isKotlin(classNode)) {
+                WriteKotlinCodeUtil(outPath, classNode, dexBeanList).writeKotlin()
+            } else {
+                WriteJavaCodeUtil(outPath, classNode, dexBeanList).writeJava()
+            }
+        } catch (e: Exception) {
+            println("代码生成失败：$classNode")
+            WriteJavaCodeUtil(outPath, classNode, dexBeanList).writeJava()
+            throw e
         }
     }
 
     companion object {
         private const val sKotlinFlag = "kotlin.Metadata"
+        private val sClassMap = HashMap<String, InnerClass>()
+
+        fun isKotlin(classNode: ClassNode): Boolean {
+            val sourceFile = classNode.get(AType.SOURCE_FILE)
+            return (classNode.getAnnotation(sKotlinFlag) != null
+                    || (sourceFile != null && sourceFile.fileName.endsWith(".kt")))
+        }
+
+        fun getKotlinPackageNameAndClassName(name: String): Array<String> {
+            return getPackageNameAndClassName(JavaToKotlinObj.javaToKotlin(name))
+        }
+
         fun getPackageNameAndClassName(name: String): Array<String> {
-            return arrayOf(name.substringBeforeLast("."), name.substringAfterLast("."))
+            return if (name.contains(".")) {
+                arrayOf(name.substringBeforeLast("."), name.substringAfterLast("."))
+            } else {
+                arrayOf("", name)
+            }
         }
 
         fun writeEmptyJava(
             outPath: String,
             packageName: String,
-            className: String,
-            generic: Boolean = false
+            classNames: List<String>,
+            isInterface: Boolean,
+            genericCount: Int
         ) {
-            if (packageName.startsWith("java.")) {
+            if (classNames.isEmpty()) {
                 return
             }
-            val saveFile = File(outPath, "lib")
-            val classBuilder = com.squareup.javapoet.TypeSpec.classBuilder(className)
-                .addModifiers(Modifier.PUBLIC)
-            if (generic) {
-                classBuilder.addTypeVariable(TypeVariableName.get("T"))
+            if (JavaToKotlinObj.contains("$packageName.${classNames[0]}")) {
+                return
             }
-            val javaFile: JavaFile = JavaFile.builder(packageName, classBuilder.build())
-                .build()
-            javaFile.writeTo(saveFile)
+            val innerClass = sClassMap.getOrDefault(packageName + classNames[0], InnerClass())
+            var childInnerClass: InnerClass? = null
+            classNames.map {
+                if (childInnerClass == null) {
+                    childInnerClass = innerClass
+                    childInnerClass?.name = it
+                    if (it == classNames[classNames.size - 1]) {
+                        if (isInterface) {
+                            childInnerClass?.isInterface = isInterface
+                        }
+                        if (genericCount > childInnerClass?.genericCount ?: 0) {
+                            childInnerClass?.genericCount = genericCount
+                        }
+                    }
+                } else {
+                    val inner = InnerClass()
+                    inner.name = it
+                    inner.isInterface = isInterface
+                    inner.genericCount = genericCount
+                    if (childInnerClass?.inner?.contains(inner) != true) {
+                        childInnerClass?.inner?.add(inner)
+                    } else {
+                        childInnerClass?.inner?.get(
+                            childInnerClass?.inner?.indexOf(inner) ?: return@map
+                        )?.apply {
+                            if (isInterface) {
+                                this.isInterface = isInterface
+                            }
+                            if (genericCount > this.genericCount) {
+                                this.genericCount = genericCount
+                            }
+                        }
+                    }
+                    childInnerClass = inner
+                }
+            }
+            sClassMap[packageName + classNames[0]] = innerClass
+            val saveFile = File(outPath, "lib")
+
+            fun write(innerClass: InnerClass): TypeSpec.Builder {
+                val builder = if (innerClass.isInterface) {
+                    TypeSpec.interfaceBuilder(innerClass.name)
+                } else {
+                    TypeSpec.classBuilder(innerClass.name)
+                }.addModifiers(Modifier.PUBLIC)
+                innerClass.inner.map {
+                    builder.addType(write(it).addModifiers(Modifier.STATIC).build())
+                }
+                for (i in 0 until innerClass.genericCount) {
+                    builder.addTypeVariable(TypeVariableName.get("T$i"))
+                }
+                return builder
+            }
+            sClassMap[packageName + classNames[0]]?.let {
+                write(it).let { classBuilder ->
+                    val javaFile: JavaFile =
+                        JavaFile.builder(packageName, classBuilder.build()).build()
+                    javaFile.writeTo(saveFile)
+                }
+            }
         }
 
         fun getSafeMethodName(arg: RegisterArg): String {
             if (arg.name != null) {
                 return arg.name
             }
-            val argType =
-                if (arg.type != ArgType.UNKNOWN) arg.type else arg.initType
-            return try {
-                argType.`object`.substringAfterLast(".").decapitalize()
-            } catch (e: java.lang.UnsupportedOperationException) {
-                "field" + System.currentTimeMillis().toString()
-            }
+            return "arg" + System.nanoTime()
         }
     }
 
+    class InnerClass {
+        val inner = ArrayList<InnerClass>()
+        var name: String? = null
+        var isInterface: Boolean = false
+        var genericCount: Int = 0
+        override fun equals(other: Any?): Boolean {
+            if (this === other) {
+                return true
+            }
+            if (other == null) {
+                return false
+            }
+            return toString() == other.toString()
+        }
+
+        override fun toString(): String {
+            return name ?: ""
+        }
+
+        override fun hashCode(): Int {
+            return toString().hashCode()
+        }
+    }
 }

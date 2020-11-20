@@ -1,6 +1,4 @@
 apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
 apply from: rootProject.file('gradle/publish.gradle')
 apply plugin: 'YRouter-system'
 
@@ -24,7 +22,6 @@ android {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation(project(":YRouter-api"))
     implementation 'com.google.code.gson:gson:2.8.6'
 }

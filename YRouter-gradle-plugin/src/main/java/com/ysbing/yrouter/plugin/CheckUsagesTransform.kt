@@ -54,142 +54,151 @@ class CheckUsagesTransform(
     @Suppress("PrivateApi")
     override fun transform(transformInvocation: TransformInvocation) {
         super.transform(transformInvocation)
-        try {
-            transformInvocation.outputProvider.deleteAll()
-            transformInvocation.context.temporaryDir.deleteRecursively()
-            val variantName = transformInvocation.context.variantName
-            val usagesInfo = HashSet<String>()
-            android.applicationVariants.map { variant ->
-                if (variant.name == variantName) {
-                    if (variant is ApplicationVariantImpl) {
-                        val aars: ArtifactCollection =
-                            if (ANDROID_GRADLE_PLUGIN_VERSION > "4.0.2") {
-                                variant.variantData.variantDependencies.getArtifactCollection(
-                                    AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
-                                    AndroidArtifacts.ArtifactScope.ALL,
-                                    AndroidArtifacts.ArtifactType.EXPLODED_AAR
+        transformInvocation.outputProvider.deleteAll()
+        transformInvocation.context.temporaryDir.deleteRecursively()
+        val variantName = transformInvocation.context.variantName
+        val usagesInfo = HashMap<String, HashSet<String>>()
+        android.applicationVariants.map { variant ->
+            if (variant.name == variantName) {
+                if (variant is ApplicationVariantImpl) {
+                    val aars: ArtifactCollection =
+                        if (ANDROID_GRADLE_PLUGIN_VERSION > "4.0.2") {
+                            variant.variantData.variantDependencies.getArtifactCollection(
+                                AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
+                                AndroidArtifacts.ArtifactScope.ALL,
+                                AndroidArtifacts.ArtifactType.EXPLODED_AAR
+                            )
+                        } else {
+                            val scopeField =
+                                BaseVariantData::class.java.getDeclaredField("scope")
+                            scopeField.isAccessible = true
+                            val variantDataMethod =
+                                ApplicationVariantImpl::class.java.getDeclaredMethod("getVariantData")
+                            val scope = scopeField.get(variantDataMethod.invoke(variant))
+                            val getArtifactCollectionMethod =
+                                VariantScope::class.java.getDeclaredMethod(
+                                    "getArtifactCollection",
+                                    AndroidArtifacts.ConsumedConfigType::class.java,
+                                    AndroidArtifacts.ArtifactScope::class.java,
+                                    AndroidArtifacts.ArtifactType::class.java
                                 )
-                            } else {
-                                val scopeField =
-                                    BaseVariantData::class.java.getDeclaredField("scope")
-                                scopeField.isAccessible = true
-                                val variantDataMethod =
-                                    ApplicationVariantImpl::class.java.getDeclaredMethod("getVariantData")
-                                val scope = scopeField.get(variantDataMethod.invoke(variant))
-                                val getArtifactCollectionMethod =
-                                    VariantScope::class.java.getDeclaredMethod(
-                                        "getArtifactCollection",
-                                        AndroidArtifacts.ConsumedConfigType::class.java,
-                                        AndroidArtifacts.ArtifactScope::class.java,
-                                        AndroidArtifacts.ArtifactType::class.java
-                                    )
-                                getArtifactCollectionMethod.invoke(
-                                    scope,
-                                    AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
-                                    AndroidArtifacts.ArtifactScope.ALL,
-                                    AndroidArtifacts.ArtifactType.EXPLODED_AAR
-                                ) as ArtifactCollection
-                            }
-                        aars.artifacts.map { aar ->
-                            val file = File(aar.file, FindUsagesTransform.INDEX_USAGES_FILE)
-                            if (file.exists() && file.canRead()) {
-                                println("找到引用配置:$file")
-                                usagesInfo.addAll(file.readLines())
-                            }
+                            getArtifactCollectionMethod.invoke(
+                                scope,
+                                AndroidArtifacts.ConsumedConfigType.COMPILE_CLASSPATH,
+                                AndroidArtifacts.ArtifactScope.ALL,
+                                AndroidArtifacts.ArtifactType.EXPLODED_AAR
+                            ) as ArtifactCollection
                         }
-                    }
-                }
-            }
-            fun findProject(name: String) {
-                project.configurations.getAt(name).dependencies.map { depend ->
-                    if (depend is DefaultProjectDependency) {
-                        val file = File(
-                            depend.dependencyProject.buildDir,
-                            "${YROUTER}${File.separator}${FindUsagesTransform.INDEX_USAGES_FILE}"
-                        )
+                    aars.artifacts.map { aar ->
+                        val file = File(aar.file, FindUsagesTransform.INDEX_USAGES_FILE)
                         if (file.exists() && file.canRead()) {
-                            println("找到引用配置:$file")
-                            usagesInfo.addAll(file.readLines())
+                            println("找到AAR引用配置:$file")
+                            usagesInfo.getOrPut("aar:$aar")
+                            { HashSet() }.addAll(file.readLines())
                         }
                     }
                 }
             }
-            findProject("api")
-            findProject("implementation")
-            val classInfo = checkUsages(usagesInfo)
-            val extractFiles = ArrayList<File>()
-            val extractClass = ArrayList<String>()
-            transformInvocation.inputs?.map {
-                it.directoryInputs.map { dir ->
-                    val dest = transformInvocation.outputProvider.getContentLocation(
-                        dir.name,
-                        dir.contentTypes,
-                        dir.scopes,
-                        Format.DIRECTORY
+        }
+        fun findProject(name: String) {
+            project.configurations.getAt(name).dependencies.map { depend ->
+                if (depend is DefaultProjectDependency) {
+                    val file = File(
+                        depend.dependencyProject.buildDir,
+                        "${YROUTER}${File.separator}${FindUsagesTransform.INDEX_USAGES_FILE}"
                     )
-                    dir.file.copyRecursively(dest, true)
-                    extractClass(
-                        extractFiles,
-                        extractClass,
-                        classInfo,
-                        dir.file,
-                        transformInvocation.context.temporaryDir
-                    )
-                }
-                it.jarInputs.map { jar ->
-                    val dest = transformInvocation.outputProvider.getContentLocation(
-                        jar.name,
-                        jar.contentTypes,
-                        jar.scopes,
-                        Format.JAR
-                    )
-                    jar.file.copyTo(dest, true)
-                    extractClass(
-                        extractFiles,
-                        extractClass,
-                        classInfo,
-                        jar.file,
-                        transformInvocation.context.temporaryDir
-                    )
+                    if (file.exists() && file.canRead()) {
+                        println("找到工程引用配置:$file")
+                        usagesInfo.getOrPut(":${depend.name}")
+                        { HashSet() }.addAll(file.readLines())
+                    }
                 }
             }
-            CheckClassObject.run(classInfo, extractFiles, extractClass)
-        } catch (e: Throwable) {
-            e.printStackTrace()
         }
+        findProject("api")
+        findProject("implementation")
+        val classInfo = checkUsages(usagesInfo)
+        val extractFiles = ArrayList<File>()
+        val extractClass = ArrayList<CheckClassObject.ClassInfoBean>()
+        transformInvocation.inputs?.map {
+            it.directoryInputs.map { dir ->
+                val dest = transformInvocation.outputProvider.getContentLocation(
+                    dir.name,
+                    dir.contentTypes,
+                    dir.scopes,
+                    Format.DIRECTORY
+                )
+                dir.file.copyRecursively(dest, true)
+                extractClass(
+                    extractFiles,
+                    extractClass,
+                    classInfo,
+                    dir.file,
+                    transformInvocation.context.temporaryDir
+                )
+            }
+            it.jarInputs.map { jar ->
+                val dest = transformInvocation.outputProvider.getContentLocation(
+                    jar.name,
+                    jar.contentTypes,
+                    jar.scopes,
+                    Format.JAR
+                )
+                jar.file.copyTo(dest, true)
+                extractClass(
+                    extractFiles,
+                    extractClass,
+                    classInfo,
+                    jar.file,
+                    transformInvocation.context.temporaryDir
+                )
+            }
+        }
+        CheckClassObject.run(classInfo, extractFiles, extractClass)
     }
 
-    private fun checkUsages(usagesInfo: HashSet<String>): MutableMap<String, MutableList<String>> {
-        val map = TreeMap<String, MutableList<String>>()
-        usagesInfo.map add@{ usage ->
-            if (usage.contains("$")) {
-                map[usage.substringBefore(" :")] = ArrayList()
-            } else if (!usage.contains(":")) {
-                map[usage] = ArrayList()
-            } else {
-                map.keys.reversed().map { key ->
-                    if (usage.contains(key)) {
-                        map[key]?.add(usage)
-                        return@add
+    private fun checkUsages(usagesInfo: HashMap<String, HashSet<String>>): TreeMap<CheckClassObject.ClassInfoBean, MutableList<String>> {
+        val map = TreeMap<CheckClassObject.ClassInfoBean, MutableList<String>>()
+        usagesInfo.keys.map { name: String ->
+            val classLines = usagesInfo[name]
+            classLines?.map add@{ usage ->
+                if (usage.contains("$")) {
+                    val classNameKey =
+                        CheckClassObject.ClassInfoBean(name, usage.substringBefore(" :"))
+                    if (!map.containsKey(classNameKey)) {
+                        map[classNameKey] = ArrayList()
                     }
+                } else if (!usage.contains(":")) {
+                    val classNameKey = CheckClassObject.ClassInfoBean(name, usage)
+                    if (!map.containsKey(classNameKey)) {
+                        map[classNameKey] = ArrayList()
+                    }
+                } else if (usage.contains(":")) {
+                    val className = usage.substringBeforeLast(":").substringBeforeLast(".")
+                    val classNameKey = CheckClassObject.ClassInfoBean(name, className)
+                    if (!map.containsKey(classNameKey)) {
+                        map[classNameKey] = ArrayList()
+                    }
+                    map[classNameKey]?.add(usage)
                 }
             }
         }
-        val changeMap = HashMap<String, String>()
+        val changeMap = HashMap<CheckClassObject.ClassInfoBean, String>()
         map.keys.map { className ->
             var hasKey: String? = null
             map.keys.map { key ->
-                if (className != key && className.contains(key)) {
-                    hasKey = key
+                if (className != key && className.className.contains(key.className)) {
+                    hasKey = key.className
                 }
             }
             if (hasKey != null) {
-                val newKey = "$hasKey\$${className.substringAfter("$hasKey.")}"
-                changeMap[newKey] = className
+                val newKey = "$hasKey\$${className.className.substringAfter("$hasKey.")}"
+                changeMap[CheckClassObject.ClassInfoBean(className.moduleName, newKey)] =
+                    className.className
             }
         }
         changeMap.map { change ->
-            map.remove(change.value)?.let {
+            map.remove(CheckClassObject.ClassInfoBean(change.key.moduleName, change.value))?.let {
                 map[change.key] = it
             }
         }
@@ -198,8 +207,8 @@ class CheckUsagesTransform(
 
     private fun extractClass(
         extractFiles: MutableList<File>,
-        extractClass: MutableList<String>,
-        classInfo: Map<String, MutableList<String>>,
+        extractClass: MutableList<CheckClassObject.ClassInfoBean>,
+        classInfo: TreeMap<CheckClassObject.ClassInfoBean, MutableList<String>>,
         file: File,
         tmpDir: File
     ) {
@@ -211,7 +220,7 @@ class CheckUsagesTransform(
             dir = file
         }
         classInfo.keys.map {
-            val className = it.replace(".", File.separator) + ".class"
+            val className = it.className.replace(".", File.separator) + ".class"
             val classFile = File(dir, className)
             if (classFile.exists()) {
                 extractClass.add(it)

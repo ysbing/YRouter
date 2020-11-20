@@ -49,7 +49,7 @@ class FilterYRouterSystemClassTransform(private val project: Project) : Transfor
                 dir.file.copyRecursively(dest, true)
                 val zipFile = File(
                     transformInvocation.context.temporaryDir,
-                    "${System.currentTimeMillis()}.jar"
+                    "${System.nanoTime()}.jar"
                 )
                 MakeJarUtil.buildJar(dir.file, zipFile)
                 findClass.add(zipFile)

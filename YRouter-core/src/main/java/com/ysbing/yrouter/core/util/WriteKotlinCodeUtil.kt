@@ -4,21 +4,29 @@ import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.ysbing.yrouter.core.DexBean
 import com.ysbing.yrouter.core.ExtractDexClassObject
-import com.ysbing.yrouter.core.util.WriteCodeUtil.Companion.getPackageNameAndClassName
+import com.ysbing.yrouter.core.util.DecompileUtil.makeSignature
+import com.ysbing.yrouter.core.util.WriteCodeUtil.Companion.getKotlinPackageNameAndClassName
 import com.ysbing.yrouter.core.util.WriteCodeUtil.Companion.writeEmptyJava
+import jadx.core.codegen.TypeGen
+import jadx.core.dex.attributes.AType
 import jadx.core.dex.instructions.args.ArgType
 import jadx.core.dex.nodes.ClassNode
+import org.jetbrains.annotations.Nullable
 import java.io.File
 
 /**
  * 将解析后的dex，写入Java文件
  */
-object WriteKotlinCodeUtil {
-    fun writeKotlin(outPath: String, classNode: ClassNode, dexBeanList: List<DexBean>) {
+class WriteKotlinCodeUtil(
+    private val outPath: String,
+    private val classNode: ClassNode,
+    private val dexBeanList: List<DexBean>
+) {
+    fun writeKotlin() {
         val saveFile = File(outPath, "main")
-        val classBuilder = newClassBuilder(classNode, outPath)
+        val classBuilder = newClassBuilder(classNode)
         dexBeanList.map {
-            beanInfo(classBuilder, it, outPath)
+            beanInfo(classBuilder, it)
         }
         val file = FileSpec.builder(
             classNode.`package`,
@@ -27,7 +35,7 @@ object WriteKotlinCodeUtil {
         file.writeTo(saveFile)
     }
 
-    private fun newClassBuilder(classNode: ClassNode, outPath: String): TypeSpec.Builder {
+    private fun newClassBuilder(classNode: ClassNode): TypeSpec.Builder {
         val classType = ExtractDexClassObject.getClassTypeFromClassNode(classNode)
         val classBuilder = when (classType) {
             DexBean.ClassType.OBJECT -> {
@@ -36,225 +44,226 @@ object WriteKotlinCodeUtil {
             DexBean.ClassType.INTERFACE -> {
                 TypeSpec.interfaceBuilder(classNode.classInfo.shortName)
             }
+            DexBean.ClassType.ENUM -> {
+                TypeSpec.enumBuilder(classNode.classInfo.shortName)
+            }
             else -> {
                 TypeSpec.classBuilder(classNode.classInfo.shortName)
             }
         }
-        if (classType != DexBean.ClassType.INTERFACE && classNode.accessFlags.isAbstract) {
+        when {
+            classNode.accessFlags.isPublic -> {
+                classBuilder.addModifiers(KModifier.PUBLIC)
+            }
+            classNode.accessFlags.isProtected -> {
+                classBuilder.addModifiers(KModifier.PROTECTED)
+            }
+            classNode.accessFlags.isPrivate -> {
+                classBuilder.addModifiers(KModifier.PRIVATE)
+            }
+        }
+        if (classType == DexBean.ClassType.CLASS && classNode.accessFlags.isAbstract) {
             classBuilder.addModifiers(KModifier.ABSTRACT)
+        }
+        if (classType == DexBean.ClassType.CLASS && !classNode.accessFlags.isAbstract
+            && !classNode.accessFlags.isPrivate && !classNode.accessFlags.isFinal
+        ) {
+            classBuilder.addModifiers(KModifier.OPEN)
+        }
+        classNode.generics?.map {
+            classBuilder.addTypeVariable(TypeVariableName.invoke(it.genericType.toString()))
+        }
+        if (classType != DexBean.ClassType.ENUM) {
+            classNode.interfaces.map {
+                val interfaceClassName = getTypeNameFromArgType(it, true)
+                classBuilder.addSuperinterface(interfaceClassName)
+            }
         }
         if (classType == DexBean.ClassType.CLASS) {
             classNode.superClass?.let {
-                if (it.`object` != java.lang.Object::class.java.name) {
-                    val names = getPackageNameAndClassName(it.`object`)
-                    classBuilder.superclass(ClassName(names[0], names[1]).apply {
-                        writeEmptyJava(outPath, packageName, simpleName)
-                    })
+                if (it.isObject && it.`object` == java.lang.Object::class.java.name) {
+                    return@let
                 }
+                if (classNode.parentClass.fullName == it.`object` && classNode.parentClass.isEnum) {
+                    return@let
+                }
+                classBuilder.superclass(getTypeNameFromArgType(it))
             }
         }
         return classBuilder
     }
 
-    private fun beanInfo(classBuilder: TypeSpec.Builder, dexBean: DexBean, outPath: String) {
+    private fun beanInfo(classBuilder: TypeSpec.Builder, dexBean: DexBean) {
         if (dexBean.nodeType == DexBean.NodeType.METHOD) {
             val method = dexBean.method
             classBuilder.addFunction(
-                FunSpec.builder(method.name).apply {
-                    method.argRegs.map argRegs@{ arg ->
-                        if (isPrimitive(arg.type)) {
-                            addParameter(
-                                WriteCodeUtil.getSafeMethodName(arg),
-                                getPrimitiveClassName(arg.type.toString()).first
-                            )
-                        } else {
-                            val argType =
-                                if (arg.type != ArgType.UNKNOWN) arg.type else arg.initType
-                            if (argType.isGeneric) {
-                                val names = getPackageNameAndClassName(argType.`object`)
-                                val className = ClassName(names[0], names[1]).apply {
-                                    writeEmptyJava(outPath, packageName, simpleName)
-                                }
-                                val typeNames = ArrayList<ClassName>()
-                                argType.genericTypes.map { genericType ->
-                                    val genericTypeNames =
-                                        getPackageNameAndClassName(genericType.`object`)
-                                    typeNames.add(
-                                        ClassName(
-                                            genericTypeNames[0],
-                                            genericTypeNames[1]
-                                        ).apply {
-                                            writeEmptyJava(outPath, packageName, simpleName)
-                                        }
-                                    )
-                                }
-                                addParameter(
-                                    WriteCodeUtil.getSafeMethodName(arg),
-                                    className.parameterizedBy(typeNames).copy(true)
-                                )
-                            } else {
-                                val className = if (argType.isArray) {
-                                    if (isPrimitive(argType.arrayElement)) {
-                                        val pair =
-                                            getPrimitiveClassName(argType.arrayElement.toString())
-                                        val array = Array::class.asClassName()
-                                        array.parameterizedBy(pair.first)
-                                    } else {
-                                        val names =
-                                            getPackageNameAndClassName(argType.arrayElement.`object`)
-                                        val array = Array::class.asClassName()
-                                        array.parameterizedBy(
-                                            ClassName(names[0], names[1]).apply {
-                                                writeEmptyJava(outPath, packageName, simpleName)
-                                            })
-                                    }
-                                } else {
-                                    val names = getPackageNameAndClassName(argType.`object`)
-                                    ClassName(names[0], names[1]).apply {
-                                        writeEmptyJava(outPath, packageName, simpleName)
-                                    }
-                                }
-                                addParameter(
-                                    WriteCodeUtil.getSafeMethodName(arg),
-                                    className.copy(true)
-                                )
-                            }
+                if (method.accessFlags.isConstructor) {
+                    if (dexBean.classType == DexBean.ClassType.INTERFACE
+                        || dexBean.classType == DexBean.ClassType.OBJECT
+                        || dexBean.classNode.shortName == "Companion"
+                    ) {
+                        return
+                    }
+                    FunSpec.constructorBuilder()
+                } else {
+                    FunSpec.builder(method.name)
+                }.apply {
+                    val methodSignature = method.makeSignature()
+                    if (DecompileUtil.methodSupportContains(
+                            dexBean.interfaceInfo,
+                            methodSignature
+                        ) && !method.accessFlags.isConstructor
+                    ) {
+                        addModifiers(KModifier.OVERRIDE)
+                    }
+                    if (dexBean.classType == DexBean.ClassType.INTERFACE && method.accessFlags.isAbstract) {
+                        addModifiers(KModifier.ABSTRACT)
+                    }
+                    when {
+                        method.accessFlags.isPublic -> {
+                            addModifiers(KModifier.PUBLIC)
+                        }
+                        method.accessFlags.isProtected -> {
+                            addModifiers(KModifier.PROTECTED)
+                        }
+                        method.accessFlags.isPrivate -> {
+                            addModifiers(KModifier.PRIVATE)
                         }
                     }
-                    if (method.returnType != null) {
+                    if (!method.accessFlags.isConstructor && !method.accessFlags.isPrivate && !method.accessFlags.isFinal) {
+                        addModifiers(KModifier.OPEN)
+                    }
+                    val paramsAnim = method.get(AType.ANNOTATION_MTH_PARAMETERS)?.paramList
+                    method.argRegs.mapIndexed argRegs@{ index, arg ->
+                        val argType =
+                            if (arg.type != ArgType.UNKNOWN) arg.type else arg.initType
+                        addParameter(
+                            WriteCodeUtil.getSafeMethodName(arg),
+                            getTypeNameFromArgType(argType).copy(
+                                paramsAnim?.get(index)?.get(Nullable::class.java.name) != null
+                            )
+                        )
+                    }
+                    method.generics?.map {
+                        addTypeVariable(TypeVariableName(it.genericType.toString()))
+                    }
+                    if (method.accessFlags.isConstructor) {
+                        if (!dexBean.superInfo1.isNullOrEmpty()) {
+                            val code = StringBuilder()
+                            dexBean.superInfo1.map {
+                                val typeName = getTypeNameFromArgType(it)
+                                code.append("null as ").append(typeName.toString()).append(",")
+                            }
+                            code.deleteCharAt(code.length - 1)
+                            callSuperConstructor(code.toString())
+                        } else if (!dexBean.superInfo2.isNullOrEmpty()) {
+                            val code = StringBuilder()
+                            dexBean.superInfo2.map {
+                                code.append("null as ").append(JavaToKotlinObj.javaToKotlin(it))
+                                    .append(",")
+                            }
+                            code.deleteCharAt(code.length - 1)
+                            callSuperConstructor(code.toString())
+                        }
+                    } else {
                         if (isPrimitive(method.returnType)) {
-                            val retClassName = getPrimitiveClassName(method.returnType.toString())
-                            if (retClassName.first != Void::class.asTypeName()) {
-                                if (retClassName.first == Any::class.asClassName()) {
-                                    returns(Any::class.asClassName().copy(true))
+                            val retClassName =
+                                getPrimitiveClassName(method.returnType.toString())
+                            if (method.returnType != ArgType.VOID) {
+                                if (method.returnType == ArgType.OBJECT) {
+                                    returns(Any::class.asClassName())
                                 } else {
-                                    returns(retClassName.first)
+                                    returns(retClassName)
                                 }
+                                if (!modifiers.contains(KModifier.ABSTRACT)) {
+                                    addStatement(
+                                        WriteKotlinMockCodeUtil.mockMethod(
+                                            method.parentClass.fullName,
+                                            method.name,
+                                            retClassName.toString(),
+                                            parameters
+                                        )
+                                    )
+                                }
+                            } else {
+                                if (!modifiers.contains(KModifier.ABSTRACT)) {
+                                    addStatement(
+                                        WriteKotlinMockCodeUtil.mockVoid(
+                                            method.parentClass.fullName,
+                                            method.name,
+                                            parameters
+                                        )
+                                    )
+                                }
+                            }
+                        } else {
+                            val retClassName = getTypeNameFromArgType(method.returnType).copy(
+                                method.getAnnotation(Nullable::class.java.name) != null
+                            )
+                            returns(retClassName)
+                            if (!modifiers.contains(KModifier.ABSTRACT)) {
                                 addStatement(
                                     WriteKotlinMockCodeUtil.mockMethod(
                                         method.parentClass.fullName,
                                         method.name,
-                                        retClassName.first,
-                                        parameters
-                                    )
-                                )
-                            } else {
-                                addStatement(
-                                    WriteKotlinMockCodeUtil.mockVoid(
-                                        method.parentClass.fullName,
-                                        method.name,
+                                        retClassName.toString(),
                                         parameters
                                     )
                                 )
                             }
-                        } else {
-                            val names = getPackageNameAndClassName(method.returnType.`object`)
-                            val retClassName = ClassName(names[0], names[1]).apply {
-                                writeEmptyJava(outPath, packageName, simpleName)
-                            }
-                            returns(retClassName.copy(true))
-                            addStatement(
-                                WriteKotlinMockCodeUtil.mockMethod(
-                                    method.parentClass.fullName,
-                                    method.name,
-                                    retClassName,
-                                    parameters
-                                )
-                            )
                         }
                     }
                 }.build()
             )
         } else if (dexBean.nodeType == DexBean.NodeType.FIELD) {
             val field = dexBean.field
-            val fieldBuilder: PropertySpec.Builder
-            if (field.type.isObject && field.type.`object` == String::class.java.name || isPrimitive(
-                    field.type
-                )
-            ) {
-                val pair = getPrimitiveClassName(field.type.toString())
-                fieldBuilder =
-                    PropertySpec.builder(
-                        field.name,
-                        pair.first
-                    ).apply {
-                        val classType =
-                            ExtractDexClassObject.getClassTypeFromClassNode(field.parentClass)
-                        mutable(!(classType == DexBean.ClassType.OBJECT && field.accessFlags.isFinal))
-                    }
-            } else {
-                if (field.type.isGeneric) {
-                    val names = getPackageNameAndClassName(field.type.`object`)
-                    val className = ClassName(names[0], names[1]).apply {
-                        writeEmptyJava(outPath, packageName, simpleName)
-                    }
-                    val typeNames = ArrayList<ClassName>()
-                    field.type.genericTypes.map { genericType ->
-                        val genericTypeNames = getPackageNameAndClassName(genericType.`object`)
-                        typeNames.add(
-                            ClassName(genericTypeNames[0], genericTypeNames[1]).apply {
-                                writeEmptyJava(outPath, packageName, simpleName)
-                            }
-                        )
-                    }
-                    fieldBuilder =
-                        PropertySpec.builder(
-                            field.name,
-                            className.parameterizedBy(typeNames).copy(true)
-                        ).apply {
-                            mutable(true)
-                        }
-                } else {
-                    val className = if (field.type.isArray) {
-                        if (isPrimitive(field.type.arrayElement)) {
-                            val pair = getPrimitiveClassName(field.type.arrayElement.toString())
-                            val array = Array::class.asClassName()
-                            array.parameterizedBy(pair.first)
-                        } else {
-                            val names =
-                                getPackageNameAndClassName(field.type.arrayElement.`object`)
-                            val array = Array::class.asClassName()
-                            array.parameterizedBy(
-                                ClassName(names[0], names[1]).apply {
-                                    writeEmptyJava(outPath, packageName, simpleName)
-                                })
-                        }
-                    } else {
-                        val names = getPackageNameAndClassName(field.type.`object`)
-                        ClassName(names[0], names[1]).apply {
-                            writeEmptyJava(outPath, packageName, simpleName)
-                        }
-                    }
-                    fieldBuilder =
-                        PropertySpec.builder(field.name, className.copy(true)).apply {
-                            mutable(true)
-                        }
-                }
-            }
-            fieldBuilder.initializer(
-                WriteKotlinMockCodeUtil.mockField(
-                    field.parentClass.fullName,
+            val fieldBuilder =
+                PropertySpec.builder(
                     field.name,
-                    fieldBuilder.build().type as ClassName
+                    getTypeNameFromArgType(field.type).copy(field.getAnnotation(Nullable::class.java.name) != null)
+                ).apply {
+                    mutable(!(dexBean.classType == DexBean.ClassType.OBJECT && field.accessFlags.isFinal))
+                }
+            if (dexBean.interfaceInfo?.contains("${field.fieldInfo.name}:${TypeGen.signature(field.fieldInfo.type)}") == true) {
+                fieldBuilder.addModifiers(KModifier.OVERRIDE)
+            }
+            if (!field.accessFlags.isFinal) {
+                fieldBuilder.addModifiers(KModifier.OPEN)
+            }
+            if (dexBean.classType != DexBean.ClassType.INTERFACE) {
+                fieldBuilder.initializer(
+                    WriteKotlinMockCodeUtil.mockField(
+                        field.parentClass.fullName,
+                        field.name,
+                        fieldBuilder.build().type.toString()
+                    )
                 )
-            )
-            classBuilder.addProperty(fieldBuilder.build())
+            }
+            if (dexBean.classType == DexBean.ClassType.ENUM) {
+                classBuilder.addEnumConstant(field.name)
+            } else {
+                classBuilder.addProperty(fieldBuilder.build())
+            }
         } else if (dexBean.nodeType == DexBean.NodeType.INNER) {
             val inner = dexBean.inner
             inner.keys.map {
                 inner[it]?.groupBy { bean ->
                     bean.classNode
-                }?.map { map ->
+                }?.map inner@{ map ->
                     if (map.key.shortName == "Companion") {
+                        //空内部类不做写入
+                        if (map.value.size == 1 && map.value[0].nodeType == DexBean.NodeType.INNER && map.value[0].inner.isEmpty()) {
+                            return@inner
+                        }
                         val innerClassBuilder = TypeSpec.companionObjectBuilder()
                         map.value.map { bean ->
-                            beanInfo(innerClassBuilder, bean, outPath)
+                            beanInfo(innerClassBuilder, bean)
                         }
                         classBuilder.addType(innerClassBuilder.build())
                     } else {
-                        val innerClassBuilder = newClassBuilder(map.key, outPath)
+                        val innerClassBuilder = newClassBuilder(map.key)
                         map.value.map { bean ->
-                            beanInfo(innerClassBuilder, bean, outPath)
+                            beanInfo(innerClassBuilder, bean)
                         }
                         classBuilder.addType(innerClassBuilder.build())
                     }
@@ -263,42 +272,8 @@ object WriteKotlinCodeUtil {
         }
     }
 
-    private fun getPrimitiveClassName(typeName: String): Pair<ClassName, String> {
-        return when (typeName) {
-            "boolean" -> {
-                Pair(Boolean::class.asClassName(), "false")
-            }
-            "char" -> {
-                Pair(Char::class.asClassName(), "'0'")
-            }
-            "byte" -> {
-                Pair(Byte::class.asClassName(), "0")
-            }
-            "short" -> {
-                Pair(Short::class.asClassName(), "0")
-            }
-            "int" -> {
-                Pair(Int::class.asClassName(), "0")
-            }
-            "float" -> {
-                Pair(Float::class.asClassName(), "0f")
-            }
-            "long" -> {
-                Pair(Long::class.asClassName(), "0L")
-            }
-            "double" -> {
-                Pair(Double::class.asClassName(), "0f")
-            }
-            "void" -> {
-                Pair(Void::class.asClassName(), "null")
-            }
-            String::class.java.name -> {
-                Pair(String::class.asClassName(), "\"\"")
-            }
-            else -> {
-                Pair(Any::class.asClassName(), "null")
-            }
-        }
+    private fun getPrimitiveClassName(typeName: String): TypeName {
+        return JavaToKotlinObj.getKotlinPrimitiveType(typeName).asClassName()
     }
 
     private fun isPrimitive(arg: ArgType): Boolean {
@@ -307,10 +282,99 @@ object WriteKotlinCodeUtil {
         }
         if (arg.isObject) {
             val primitiveType = getPrimitiveClassName(arg.`object`)
-            if (primitiveType.first != Any::class.asClassName()) {
+            if (primitiveType != Any::class.asClassName()) {
                 return true
             }
         }
         return false
+    }
+
+    private fun getClassName(
+        packageName: String,
+        className: String,
+        isInterface: Boolean = false,
+        genericCount: Int = 0
+    ): ClassName {
+        return ClassName(packageName, className.split("$")).apply {
+            writeEmptyJava(outPath, this.packageName, this.simpleNames, isInterface, genericCount)
+        }
+    }
+
+    private fun getTypeNameFromArgType(argType: ArgType, isInterface: Boolean = false): TypeName {
+        return when {
+            isPrimitive(argType) -> {
+                getPrimitiveClassName(argType.toString())
+            }
+            argType.wildcardType != null -> {
+                getWildcardTypeName(argType)
+            }
+            argType.isGenericType -> {
+                val genericTypeNames = getKotlinPackageNameAndClassName(argType.`object`)
+                getClassName(genericTypeNames[0], genericTypeNames[1])
+            }
+            argType.isGeneric -> {
+                getGenericTypeName(argType, isInterface)
+            }
+            argType.isArray -> {
+                getArrayTypeName(argType.arrayElement)
+            }
+            else -> {
+                val names = getKotlinPackageNameAndClassName(argType.`object`)
+                getClassName(names[0], names[1], isInterface)
+            }
+        }
+    }
+
+    private fun getGenericTypeName(argType: ArgType, isInterface: Boolean = false): TypeName {
+        if (argType.innerType != null) {
+            return getTypeNameFromArgType(argType.innerType)
+        }
+        val names = getKotlinPackageNameAndClassName(argType.`object`)
+        val className =
+            getClassName(
+                names[0],
+                names[1],
+                isInterface,
+                argType.genericTypes?.size ?: 0
+            )
+        val typeNames = ArrayList<TypeName>()
+        argType.genericTypes?.map { genericType ->
+            typeNames.add(getTypeNameFromArgType(genericType))
+        }
+        return className.parameterizedBy(typeNames)
+    }
+
+    private fun getArrayTypeName(argType: ArgType): TypeName {
+        return if (argType.isArray) {
+            getArrayTypeName(argType.arrayElement)
+        } else {
+            var typeName: TypeName? = null
+            if (argType.isPrimitive) {
+                typeName = JavaToKotlinObj.getPrimitiveArrayType(argType.toString())?.asTypeName()
+            }
+            if (typeName == null) {
+                val array = Array::class.asClassName()
+                array.parameterizedBy(getTypeNameFromArgType(argType))
+            } else {
+                typeName
+            }
+        }
+    }
+
+    private fun getWildcardTypeName(argType: ArgType): TypeName {
+        return when (argType.wildcardBound) {
+            ArgType.WildcardBound.EXTENDS -> {
+                WildcardTypeName.producerOf(getTypeNameFromArgType(argType.wildcardType))
+            }
+            ArgType.WildcardBound.SUPER -> {
+                WildcardTypeName.consumerOf(getTypeNameFromArgType(argType.wildcardType))
+            }
+            ArgType.WildcardBound.UNBOUND -> {
+                STAR
+            }
+            else -> {
+                getTypeNameFromArgType(argType.wildcardType)
+            }
+        }
     }
 }

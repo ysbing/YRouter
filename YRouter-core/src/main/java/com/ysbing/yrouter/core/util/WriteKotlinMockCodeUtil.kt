@@ -10,7 +10,6 @@ import com.ysbing.yrouter.core.util.WriteJavaMockCodeUtil.METHOD_VOID_MOCK
 import java.io.File
 
 object WriteKotlinMockCodeUtil {
-
     fun writeMockConfigJava(saveFile: File, config: String) {
         val classBuilder = TypeSpec.objectBuilder(WriteJavaMockCodeUtil.CLASS_NAME_MOCK_CONFIG)
         classBuilder.addProperty(
@@ -23,22 +22,37 @@ object WriteKotlinMockCodeUtil {
         javaFile.writeTo(saveFile)
     }
 
-    fun mockField(className: String, name: String, retType: ClassName): String {
-        return "$CLASS_PACKAGE.$CLASS_NAME.$FIELD_MOCK(\"$className\",\"$name\",\"${retType.simpleName.toLowerCase()}\") as $retType"
+    fun mockField(className: String, name: String, retType: String): String {
+        return "$CLASS_PACKAGE.$CLASS_NAME.$FIELD_MOCK(\n\"${
+            className.replace(
+                "$",
+                """\$"""
+            )
+        }\",\n\"${getFragmentStr(name)}\",\n\"${getFragmentStr(retType)}\") \nas $retType"
     }
 
     fun mockMethod(
         className: String,
         name: String,
-        retType: ClassName,
+        retType: String,
         args: List<ParameterSpec>
     ): String {
         return if (args.isNotEmpty()) {
-            "return $CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\"$className\",\"$name\"," +
-                    "\"${retType.simpleName.toLowerCase()}\",${getArgs(args)}) as $retType"
+            "return $CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\n\"${
+                className.replace(
+                    "$",
+                    """\$"""
+                )
+            }\",\n\"${getFragmentStr(name)}\",\n" +
+                    "\"${getFragmentStr(retType)}\",${getArgs(args)}) \nas $retType"
         } else {
-            "return $CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\"$className\",\"$name\"," +
-                    "\"${retType.simpleName.toLowerCase()}\") as $retType"
+            "return $CLASS_PACKAGE.$CLASS_NAME.$METHOD_MOCK(\n\"${
+                className.replace(
+                    "$",
+                    """\$"""
+                )
+            }\",\n\"${getFragmentStr(name)}\",\n" +
+                    "\"${getFragmentStr(retType)}\") \nas $retType"
         }
     }
 
@@ -48,9 +62,19 @@ object WriteKotlinMockCodeUtil {
         args: List<ParameterSpec>
     ): String {
         return if (args.isNotEmpty()) {
-            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\"$className\",\"$name\",${getArgs(args)})"
+            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\n\"${
+                className.replace(
+                    "$",
+                    """\$"""
+                )
+            }\",\n\"${getFragmentStr(name)}\",${getArgs(args)})"
         } else {
-            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\"$className\",\"$name\")"
+            "$CLASS_PACKAGE.$CLASS_NAME.$METHOD_VOID_MOCK(\n\"${
+                className.replace(
+                    "$",
+                    """\$"""
+                )
+            }\",\n\"${getFragmentStr(name)}\")"
         }
     }
 
@@ -61,10 +85,26 @@ object WriteKotlinMockCodeUtil {
         val str = StringBuilder()
         args.map {
             str.append("\n${YRouterMockPair::class.java.name}(\n\"")
-            str.append(it.type).append("\",").append(it.name)
+            str.append(getFragmentStr(it.type.toString())).append("\",\n")
+            str.append("`${it.name}`")
             str.append("),")
         }
-        str.deleteAt(str.length - 1)
-        return str.toString()
+        return if (str.isNotEmpty()) {
+            str.removeRange(str.length - 1, str.length).toString()
+        } else {
+            ""
+        }
+    }
+
+    private fun getFragmentStr(str: String): String {
+        val size = 47
+        if (str.length <= size) {
+            return str
+        }
+        val strBuilder = StringBuilder()
+        str.chunked(size).map {
+            strBuilder.append(it).append("\"+\n\"")
+        }
+        return strBuilder.toString()
     }
 }

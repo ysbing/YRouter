@@ -59,7 +59,7 @@ public class MakeJarUtil {
         List<File> filePaths = new ArrayList<>();
         String javaLocalClassPath = System.getProperty("java.class.path");
         if (javaLocalClassPath != null) {
-            for (String s : javaLocalClassPath.split(":")) {
+            for (String s : javaLocalClassPath.split(";")) {
                 filePaths.add(new File(s));
             }
         }

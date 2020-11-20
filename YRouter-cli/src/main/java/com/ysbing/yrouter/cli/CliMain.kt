@@ -1,7 +1,7 @@
 package com.ysbing.yrouter.cli
 
-import com.ysbing.yrouter.core.ExtractDexClassObject
 import com.ysbing.yrouter.core.DexBean
+import com.ysbing.yrouter.core.ExtractDexClassObject
 import com.ysbing.yrouter.core.util.FileOperation
 import com.ysbing.yrouter.core.util.MakeJarUtil
 import com.ysbing.yrouter.core.util.WriteCodeUtil
@@ -12,12 +12,6 @@ import kotlin.system.exitProcess
 
 class CliMain {
     fun run(args: Array<String>) {
-//        val dir = "D:\\dev\\ysbing\\YRouter\\tool_output\\"
-//        val args = arrayOf(
-//            dir + "input.apk",
-//            ARG_OUT,
-//            dir + "output"
-//        )
         if (args.isEmpty()) {
             goToError()
         }
@@ -26,17 +20,20 @@ class CliMain {
         if (readArgs.outputPath == null) {
             goToError()
         }
+
         val startTime = System.currentTimeMillis()
         //解压apk
         FileOperation.unZipAPk(readArgs.apkFilePath, readArgs.outputPath)
         val file = File(readArgs.outputPath!!)
         val infoList = ArrayList<DexBean>()
+        val extractDexClassObject = ExtractDexClassObject(infoList)
         //收集变量和方法
         file.listFiles { _, name ->
             name?.endsWith(".dex") ?: false
         }?.map {
-            ExtractDexClassObject.run(it, infoList)
+            extractDexClassObject.load(it)
         }
+        extractDexClassObject.run()
         val writeCodeUtil = WriteCodeUtil(readArgs.outputPath + "/tmp/src")
         //生成java和kotlin源代码
         infoList.groupBy {

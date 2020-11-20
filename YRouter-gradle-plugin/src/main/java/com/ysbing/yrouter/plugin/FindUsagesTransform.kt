@@ -97,7 +97,7 @@ class FindUsagesTransform(
     ) {
         try {
             if (file.isDirectory) {
-                val zipFile = File(buildDir, "${System.currentTimeMillis()}.jar")
+                val zipFile = File(buildDir, "${System.nanoTime()}.jar")
                 MakeJarUtil.buildJar(file, zipFile)
                 DecompileUtil.run(indexFile, zipFile, usagesInfo)
                 return

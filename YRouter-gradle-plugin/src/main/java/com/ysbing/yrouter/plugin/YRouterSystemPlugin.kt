@@ -12,7 +12,7 @@ import org.gradle.api.plugins.JavaPlugin
 class YRouterSystemPlugin : Plugin<Project> {
     override fun apply(project: Project) {
         project.dependencies.add(
-            JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME,
+            JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME,
             YROUTER_API_DEPENDENCIES
         )
         if (project.plugins.hasPlugin(AppPlugin::class.java)) {

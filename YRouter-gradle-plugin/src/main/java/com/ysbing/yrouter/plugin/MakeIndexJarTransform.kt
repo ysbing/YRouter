@@ -11,7 +11,6 @@ import com.ysbing.yrouter.core.util.MakeJarUtil
 import com.ysbing.yrouter.core.util.WriteCodeUtil
 import com.ysbing.yrouter.plugin.Constants.YROUTER
 import org.gradle.api.Project
-import org.jetbrains.kotlin.gradle.plugin.KotlinBasePluginWrapper
 import java.io.File
 import java.net.URLClassLoader
 
@@ -22,6 +21,10 @@ class MakeIndexJarTransform(
 ) : Transform() {
     companion object {
         const val KOTLIN_STDLIB = "kotlin-stdlib"
+    }
+
+    private val mKotlinStdlibClassPath: String? by lazy {
+        getKotlinStdlibClassPath()?.absolutePath
     }
 
     override fun getName(): String {
@@ -42,12 +45,12 @@ class MakeIndexJarTransform(
 
     private fun getKotlinStdlibClassPath(): File? {
         return if (project.plugins.hasPlugin("kotlin-android")) {
-            val pluginVersion = project.plugins.filterIsInstance<KotlinBasePluginWrapper>()
-                .firstOrNull()?.kotlinPluginVersion
             val urlClassLoader =
                 YRouterPlugin::class.java.classLoader as? URLClassLoader ?: return null
             urlClassLoader.urLs
-                .firstOrNull { it.toString().endsWith("$KOTLIN_STDLIB-$pluginVersion.jar") }
+                .firstOrNull {
+                    it.toString().contains("$KOTLIN_STDLIB-\\d+(\\.\\d+)*.jar".toRegex())
+                }
                 ?.let { File(it.toURI()) }
                 ?.takeIf(File::exists)
         } else {
@@ -79,14 +82,16 @@ class MakeIndexJarTransform(
         )
         val startTime = System.currentTimeMillis()
         val infoList = ArrayList<DexBean>()
+        val extractDexClassObject = ExtractDexClassObject(infoList)
         transformInvocation.inputs?.map {
             it.directoryInputs.map { dir ->
-                collectDirClass(buildDir, dir.file, infoList)
+                collectDirClass(buildDir, dir.file, extractDexClassObject)
             }
             it.jarInputs.map { jar ->
-                collectDirClass(buildDir, jar.file, infoList)
+                collectDirClass(buildDir, jar.file, extractDexClassObject)
             }
         }
+        extractDexClassObject.run()
         if (infoList.isEmpty()) {
             return
         }
@@ -106,7 +111,7 @@ class MakeIndexJarTransform(
         MakeJarUtil.buildKotlinClass(
             buildDir?.absolutePath + "/src/lib",
             buildDir?.absolutePath + "/src/lib",
-            arrayOf(getKotlinStdlibClassPath()?.absolutePath)
+            arrayOf(mKotlinStdlibClassPath)
         )
         MakeJarUtil.buildJavaClass(
             buildDir?.absolutePath + "/src/main",
@@ -118,7 +123,7 @@ class MakeIndexJarTransform(
             buildDir?.absolutePath + "/src/main",
             arrayOf(
                 buildDir?.absolutePath + "/src/lib",
-                getKotlinStdlibClassPath()?.absolutePath
+                mKotlinStdlibClassPath
             )
         )
         //将所有的class合jar
@@ -126,15 +131,19 @@ class MakeIndexJarTransform(
         println("yrouter build success->${outputFile.absolutePath}，耗时:${System.currentTimeMillis() - startTime}")
     }
 
-    private fun collectDirClass(buildDir: File, file: File, infoList: MutableList<DexBean>) {
+    private fun collectDirClass(
+        buildDir: File,
+        file: File,
+        extractDexClassObject: ExtractDexClassObject
+    ) {
         try {
             if (file.isDirectory) {
-                val zipFile = File(buildDir, "${System.currentTimeMillis()}.jar")
+                val zipFile = File(buildDir, "${System.nanoTime()}.jar")
                 MakeJarUtil.buildJar(file, zipFile)
-                ExtractDexClassObject.run(zipFile, infoList)
+                extractDexClassObject.load(zipFile)
                 return
             }
-            ExtractDexClassObject.run(file, infoList)
+            extractDexClassObject.load(file)
         } catch (e: Throwable) {
         }
     }

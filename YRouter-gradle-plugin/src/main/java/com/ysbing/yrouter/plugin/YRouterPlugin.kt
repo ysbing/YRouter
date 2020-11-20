@@ -72,7 +72,7 @@ open class YRouterPlugin : Plugin<Project> {
         }
         if (variantName.isEmpty()) {
             project.dependencies.add(
-                JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME,
+                JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME,
                 YROUTER_API_DEPENDENCIES
             )
         }
