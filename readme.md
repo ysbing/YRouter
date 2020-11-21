@@ -9,7 +9,7 @@ YRouter是一款性能0损耗的Android模块路由。
 ## 二、框架特性
 * 性能0损耗
 * 数据模拟，支持模块化开发后的数据模拟
-* 反射优化，所有用到反射的地方都可以干掉了
+* 反射优化，非常简单使用系统类
 
 ## 三、安装
 
@@ -21,7 +21,7 @@ buildscript {
         google()
     }
     dependencies {
-        classpath 'com.ysbing.yrouter:YRouter-gradle-plugin:1.1.0'
+        classpath 'com.ysbing.yrouter:YRouter-gradle-plugin:1.2.2'
     }
 }
 ```

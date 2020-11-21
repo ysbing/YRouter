@@ -16,6 +16,7 @@ import jadx.core.dex.nodes.MethodNode
 import jadx.core.dex.nodes.RootNode
 import jadx.core.dex.visitors.DepthTraversal
 import jadx.core.dex.visitors.IDexTreeVisitor
+import jadx.core.dex.visitors.ModVisitor
 import jadx.core.utils.files.InputFile
 import java.io.File
 import java.lang.reflect.Constructor
@@ -75,7 +76,7 @@ class ExtractDexClassObject(private val infoList: MutableList<DexBean>) {
             it.classNode
         }.map {
             it.value.map { bean ->
-                for (visitor in rootNode.passes) {
+                rootNode.passes.map { visitor ->
                     visit(visitor, bean)
                 }
             }
@@ -93,7 +94,9 @@ class ExtractDexClassObject(private val infoList: MutableList<DexBean>) {
         }
         bean.method?.let { method ->
             method.load()
-            DepthTraversal.visit(visitor, method)
+            if (visitor !is ModVisitor) {
+                DepthTraversal.visit(visitor, method)
+            }
         }
     }
 
@@ -366,11 +369,7 @@ class ExtractDexClassObject(private val infoList: MutableList<DexBean>) {
                 Class.forName(classNode.superClass?.`object`).declaredConstructors.map {
                     val level = when {
                         it.modifiers and Modifier.PUBLIC != 0 -> {
-                            if (it.parameterCount == 0) {
-                                3
-                            } else {
-                                2
-                            }
+                            2
                         }
                         it.modifiers and Modifier.PROTECTED != 0 -> {
                             1
@@ -381,6 +380,9 @@ class ExtractDexClassObject(private val infoList: MutableList<DexBean>) {
                         else -> {
                             return@map
                         }
+                    }
+                    if (it.parameterCount == 0) {
+                        return null
                     }
                     constructorArray.add(Pair(it, level))
                 }
@@ -397,11 +399,7 @@ class ExtractDexClassObject(private val infoList: MutableList<DexBean>) {
                 if (it.isConstructor && !it.accessFlags.isSynthetic) {
                     val level = when {
                         it.accessFlags.isPublic -> {
-                            if (it.argTypes.isEmpty()) {
-                                3
-                            } else {
-                                2
-                            }
+                            2
                         }
                         it.accessFlags.isProtected -> {
                             1
@@ -412,6 +410,9 @@ class ExtractDexClassObject(private val infoList: MutableList<DexBean>) {
                         else -> {
                             return@map
                         }
+                    }
+                    if (it.argTypes.isEmpty()) {
+                        return null
                     }
                     constructorArray.add(Pair(it, level))
                 }

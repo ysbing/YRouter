@@ -4,7 +4,7 @@ import com.android.Version
 
 object Constants {
     const val YROUTER = "yrouter"
-    const val YROUTER_VERSION = "1.2.0"
+    const val YROUTER_VERSION = "1.2.2"
     const val YROUTER_API_DEPENDENCIES =
         "com.ysbing.yrouter:YRouter-api:$YROUTER_VERSION"
     const val YROUTER_MOCK_DEPENDENCIES =
