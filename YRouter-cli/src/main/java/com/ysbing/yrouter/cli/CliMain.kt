@@ -41,33 +41,24 @@ class CliMain {
         }.map {
             writeCodeUtil.run(it.key, it.value)
         }
+        val outputFile = File(readArgs.outputPath + "/yrouter_index.jar")
+        val libDir = File(readArgs.outputPath + "/tmp/src/lib")
+        val mainDir = File(readArgs.outputPath + "/tmp/src/main")
+        val classDir = File(readArgs.outputPath + "/tmp/src/class")
+        libDir.mkdirs()
+        mainDir.mkdirs()
+        classDir.mkdirs()
         //编译源代码
-        MakeJarUtil.buildJavaClass(
-            readArgs.outputPath + "/tmp/src/lib",
-            readArgs.outputPath + "/tmp/src/lib",
-            arrayOf()
-        )
+        MakeJarUtil.buildJavaClass(libDir, libDir, arrayOf())
+        MakeJarUtil.buildKotlinClass(libDir, libDir, arrayOf())
+        MakeJarUtil.buildJavaClass(mainDir, classDir, arrayOf(libDir))
         MakeJarUtil.buildKotlinClass(
-            readArgs.outputPath + "/tmp/src/lib",
-            readArgs.outputPath + "/tmp/src/lib",
-            arrayOf()
-        )
-        MakeJarUtil.buildJavaClass(
-            readArgs.outputPath + "/tmp/src/main",
-            readArgs.outputPath + "/tmp/src/main",
-            arrayOf(readArgs.outputPath + "/tmp/src/lib")
-        )
-        MakeJarUtil.buildKotlinClass(
-            readArgs.outputPath + "/tmp/src/main",
-            readArgs.outputPath + "/tmp/src/main",
-            arrayOf(readArgs.outputPath + "/tmp/src/lib")
+            mainDir,
+            classDir,
+            arrayOf(libDir.absolutePath)
         )
         //将所有的class合jar
-        val outputFile = File(readArgs.outputPath + "/yrouter_index.jar")
-        MakeJarUtil.buildJar(
-            File(readArgs.outputPath + "/tmp/src/main"),
-            outputFile
-        )
+        MakeJarUtil.buildJar(classDir, outputFile)
         println("yrouter build success->${outputFile.absolutePath}，耗时:${System.currentTimeMillis() - startTime}")
     }
 

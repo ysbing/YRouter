@@ -88,10 +88,7 @@ class FindMockClassTransform(private val project: Project) : Transform() {
         val mockClassArray = findClass.getMockClassArray()
         val json = Gson().toJson(mockClassArray)
         WriteKotlinMockCodeUtil.writeMockConfigJava(lib, json)
-        MakeJarUtil.buildKotlinClass(
-            lib.absolutePath, lib.absolutePath,
-            arrayOf(getKotlinStdlibClassPath()?.absolutePath)
-        )
+        MakeJarUtil.buildKotlinClass(lib, lib, arrayOf(getKotlinStdlibClassPath()?.absolutePath))
         MakeJarUtil.buildJar(lib, mockDest)
     }
 }

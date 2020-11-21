@@ -76,10 +76,7 @@ class MakeIndexJarTransform(
             return
         }
         val outputFileName = apkOutputFile?.name?.replace(".apk", "")?.replace("-debug", "")
-        val outputFile = File(
-            "${project.buildDir}${File.separator}${YROUTER}",
-            "/${outputFileName}-yrouter_index.jar"
-        )
+
         val startTime = System.currentTimeMillis()
         val infoList = ArrayList<DexBean>()
         val extractDexClassObject = ExtractDexClassObject(infoList)
@@ -102,32 +99,27 @@ class MakeIndexJarTransform(
         }.map {
             writeCodeUtil.run(it.key, it.value)
         }
+        val outputFile = File(
+            "${project.buildDir}${File.separator}${YROUTER}",
+            "/${outputFileName}-yrouter_index.jar"
+        )
+        val libDir = File(buildDir?.absolutePath + "/src/lib")
+        val mainDir = File(buildDir?.absolutePath + "/src/main")
+        val classDir = File(buildDir?.absolutePath + "/src/class")
+        libDir.mkdirs()
+        mainDir.mkdirs()
+        classDir.mkdirs()
         //编译源代码
-        MakeJarUtil.buildJavaClass(
-            buildDir?.absolutePath + "/src/lib",
-            buildDir?.absolutePath + "/src/lib",
-            arrayOf()
-        )
+        MakeJarUtil.buildJavaClass(libDir, libDir, arrayOf())
+        MakeJarUtil.buildKotlinClass(libDir, libDir, arrayOf(mKotlinStdlibClassPath))
+        MakeJarUtil.buildJavaClass(mainDir, classDir, arrayOf(libDir))
         MakeJarUtil.buildKotlinClass(
-            buildDir?.absolutePath + "/src/lib",
-            buildDir?.absolutePath + "/src/lib",
-            arrayOf(mKotlinStdlibClassPath)
-        )
-        MakeJarUtil.buildJavaClass(
-            buildDir?.absolutePath + "/src/main",
-            buildDir?.absolutePath + "/src/main",
-            arrayOf(buildDir?.absolutePath + "/src/lib")
-        )
-        MakeJarUtil.buildKotlinClass(
-            buildDir?.absolutePath + "/src/main",
-            buildDir?.absolutePath + "/src/main",
-            arrayOf(
-                buildDir?.absolutePath + "/src/lib",
-                mKotlinStdlibClassPath
-            )
+            mainDir,
+            classDir,
+            arrayOf(libDir.absolutePath, mKotlinStdlibClassPath)
         )
         //将所有的class合jar
-        MakeJarUtil.buildJar(File(buildDir?.absolutePath + "/src/main"), outputFile)
+        MakeJarUtil.buildJar(classDir, outputFile)
         println("yrouter build success->${outputFile.absolutePath}，耗时:${System.currentTimeMillis() - startTime}")
     }
 
