@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">YRouter</string>
-    <string name="lib1_activity">第一个Activity</string>
-    <string name="lib2_activity">第二个Activity</string>
+    <string name="mock_test">模拟测试</string>
+    <string name="call_library1">调用Library1</string>
 </resources>

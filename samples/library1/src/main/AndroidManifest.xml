@@ -1,7 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ysbing.yrouter.sampleslibrary1">
+<manifest package="com.ysbing.yrouter.sampleslibrary1">
 
-    <application>
-        <activity android:name=".Library1Activity" />
-    </application>
+    <application></application>
 </manifest>

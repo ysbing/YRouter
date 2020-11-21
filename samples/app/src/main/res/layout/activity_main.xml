@@ -5,23 +5,23 @@
     android:layout_height="match_parent">
 
     <Button
-        android:id="@+id/library1Activity"
+        android:id="@+id/mockTest"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/lib1_activity"
-        app:layout_constraintBottom_toTopOf="@+id/library2Activity"
+        android:text="@string/mock_test"
+        app:layout_constraintBottom_toTopOf="@+id/callLibrary1"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <Button
-        android:id="@+id/library2Activity"
+        android:id="@+id/callLibrary1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/lib2_activity"
+        android:text="@string/call_library1"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/library1Activity" />
+        app:layout_constraintTop_toBottomOf="@+id/mockTest" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

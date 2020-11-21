@@ -1,13 +1,19 @@
 package com.ysbing.yrouter.sampleslibrary1
 
 import com.ysbing.yrouter.api.YRouterApi
+import com.ysbing.yrouter.samples.MainActivity
 
 class Library1Api {
     @YRouterApi
-    var e11111111111: String = "e11111111111"
+    var a: String = "a123"
 
     @YRouterApi
-    fun w111111111(fsdfds: Map<String, Double>, num: Float): Int {
+    fun b(a: Map<String, Double>, b: Float): Int {
         return 0
+    }
+
+    @YRouterApi
+    fun c(num: Int): String {
+        return MainActivity.getName() + num
     }
 }
