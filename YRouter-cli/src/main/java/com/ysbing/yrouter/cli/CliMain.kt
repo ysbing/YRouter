@@ -44,7 +44,7 @@ class CliMain {
         val outputFile = File(readArgs.outputPath + "/yrouter_index.jar")
         val libDir = File(readArgs.outputPath + "/tmp/src/lib")
         val mainDir = File(readArgs.outputPath + "/tmp/src/main")
-        val classDir = File(readArgs.outputPath + "/tmp/src/class")
+        val classDir = File(readArgs.outputPath + "/tmp/class")
         libDir.mkdirs()
         mainDir.mkdirs()
         classDir.mkdirs()

@@ -105,7 +105,7 @@ class MakeIndexJarTransform(
         )
         val libDir = File(buildDir?.absolutePath + "/src/lib")
         val mainDir = File(buildDir?.absolutePath + "/src/main")
-        val classDir = File(buildDir?.absolutePath + "/src/class")
+        val classDir = File(buildDir?.absolutePath + "/class")
         libDir.mkdirs()
         mainDir.mkdirs()
         classDir.mkdirs()
