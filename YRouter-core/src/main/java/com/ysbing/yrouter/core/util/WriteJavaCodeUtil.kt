@@ -224,12 +224,17 @@ class WriteJavaCodeUtil(
                     fieldBuilder.addModifiers(Modifier.PRIVATE)
                 }
             }
-            //内部类不能具有静态声明
-            if (dexBean.classType != DexBean.ClassType.CLASS
-                || field.parentClass.parentClass == null
-                && field.accessFlags.isStatic
-            ) {
-                fieldBuilder.addModifiers(Modifier.STATIC)
+            if (dexBean.classType == DexBean.ClassType.CLASS) {
+                //非静态内部类不能具有静态声明
+                if (field.parentClass.parentClass != null && field.parentClass != field.parentClass.parentClass) {
+                    if (field.parentClass.accessFlags.isStatic && field.accessFlags.isStatic) {
+                        fieldBuilder.addModifiers(Modifier.STATIC)
+                    }
+                } else {
+                    if (field.accessFlags.isStatic) {
+                        fieldBuilder.addModifiers(Modifier.STATIC)
+                    }
+                }
             }
             if (field.accessFlags.isFinal) {
                 fieldBuilder.addModifiers(Modifier.FINAL)
