@@ -214,7 +214,7 @@ class CheckUsagesTransform(
     ) {
         val dir: File
         if (file.isFile) {
-            dir = tmpDir
+            dir = File(tmpDir, System.nanoTime().toString())
             FileOperation.unZipAPk(file.absolutePath, dir.absolutePath)
         } else {
             dir = file

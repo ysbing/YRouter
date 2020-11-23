@@ -149,15 +149,13 @@ public class FileOperation {
         return file;
     }
 
-
-    @SuppressWarnings("rawtypes")
     public static HashMap<String, Integer> unZipAPk(String fileName, String filePath) throws IOException {
         checkDirectory(filePath);
         ZipFile zipFile = new ZipFile(fileName);
-        Enumeration emu = zipFile.entries();
+        Enumeration<? extends ZipEntry> emu = zipFile.entries();
         HashMap<String, Integer> compress = new HashMap<>();
         while (emu.hasMoreElements()) {
-            ZipEntry entry = (ZipEntry) emu.nextElement();
+            ZipEntry entry = emu.nextElement();
             if (entry.isDirectory()) {
                 new File(filePath, entry.getName()).mkdirs();
                 continue;
@@ -194,8 +192,8 @@ public class FileOperation {
     /**
      * zip list of file
      *
-     * @param resFileList file(dir) list
-     * @param zipFile     output zip file
+     * @param resFileList  file(dir) list
+     * @param zipFile      output zip file
      * @param compressData compress data
      * @throws IOException io exception
      */
