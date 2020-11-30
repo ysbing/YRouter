@@ -11,7 +11,6 @@ import com.ysbing.yrouter.core.util.FileOperation
 import com.ysbing.yrouter.core.util.MakeJarUtil
 import com.ysbing.yrouter.core.util.WriteKotlinMockCodeUtil
 import org.gradle.api.Project
-import org.jetbrains.kotlin.gradle.plugin.KotlinBasePluginWrapper
 import java.io.File
 import java.net.URLClassLoader
 
@@ -33,15 +32,18 @@ class FindMockClassTransform(private val project: Project) : Transform() {
     }
 
     private fun getKotlinStdlibClassPath(): File? {
-        val pluginVersion = project.plugins.filterIsInstance<KotlinBasePluginWrapper>()
-            .firstOrNull()?.kotlinPluginVersion
-        val urlClassLoader = YRouterPlugin::class.java.classLoader as? URLClassLoader ?: return null
-        return urlClassLoader.urLs
-            .firstOrNull {
-                it.toString().endsWith("${MakeIndexJarTransform.KOTLIN_STDLIB}-$pluginVersion.jar")
-            }
-            ?.let { File(it.toURI()) }
-            ?.takeIf(File::exists)
+        return if (project.plugins.hasPlugin("kotlin-android")) {
+            val urlClassLoader =
+                YRouterPlugin::class.java.classLoader as? URLClassLoader ?: return null
+            urlClassLoader.urLs
+                .firstOrNull {
+                    it.toString().contains("${MakeIndexJarTransform.KOTLIN_STDLIB}-\\d+(\\.\\d+)*.jar".toRegex())
+                }
+                ?.let { File(it.toURI()) }
+                ?.takeIf(File::exists)
+        } else {
+            null
+        }
     }
 
     override fun transform(transformInvocation: TransformInvocation) {
