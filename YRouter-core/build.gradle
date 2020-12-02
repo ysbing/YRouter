@@ -8,7 +8,6 @@ repositories {
 }
 
 dependencies {
-    implementation fileTree(dir: "libs", include: ["*.jar"])
     implementation fileTree(dir: "${rootDir}/libs", include: ["*.jar"])
     implementation(project(":YRouter-api"))
     implementation 'com.squareup:javapoet:1.13.0'
