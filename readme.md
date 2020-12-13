@@ -21,7 +21,7 @@ buildscript {
         google()
     }
     dependencies {
-        classpath 'com.ysbing.yrouter:YRouter-gradle-plugin:1.2.2'
+        classpath 'com.ysbing.yrouter:YRouter-gradle-plugin:1.2.3'
     }
 }
 ```
@@ -61,7 +61,7 @@ public class JavaTest {
 
 执行完毕在app工程的build目录下有一个yrouter文件夹，把yrouter文件夹里的.jar文件拿出来
 
-![](https://github.com/ysbing/YRouter/wiki/assets/img_yrouter_task.png)
+![](https://github.com/ysbing/YRouter/wiki/assets/img_yrouter_index.png)
 
 这个jar文件就是我们的api了，拿着这个jar文件随意调用即可，我们尝试把它放到library1工程
 
